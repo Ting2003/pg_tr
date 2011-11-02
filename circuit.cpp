@@ -594,28 +594,10 @@ void Circuit::solve_LU_core(Tran &tran){
    // then substitute all the nodes rid
    start_ptr_assign_rid();
    start_ptr_assign_bp();
-#if 0
-   for(size_t i=0;i<n;i++){
-      int id = id_map[i];
-      replist[id]->rid = i;
-      temp[i] = bp[i];
-   }
-//#endif
-   //for(size_t i=0;i<n;i++)
-      //temp[i] = bp[i];
-   // also substitute all bp index
-   for(size_t i=0;i<n;i++){
-      bp[i] = temp[id_map[i]];
-   }
-#endif
+
    start_ptr_assign_xp();
    start_ptr_assign_xp_b();
-#if 0
-   for(size_t i=0;i<n;i++)
-      temp[i] = xp[i];
-   for(size_t i=0;i<n;i++)
-      xp[i] = temp[id_map[i]];
-#endif
+
    delete [] temp;
    /*****************************************/
 //#endif
