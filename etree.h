@@ -5,9 +5,9 @@
 class Node_G{
 public:
    int value; // stores the col id
-   int n_child; // number of childern
    int level; // level number
-   Node_G * parent; // point to its parent
+   Node_G * children; // point to its parent
+   vector<Node_G*>parent;// point to its children
 
    Node_G();
    Node_G(int var);  

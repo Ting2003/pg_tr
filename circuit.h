@@ -248,8 +248,10 @@ private:
 	//void solve_eq_pr(cholmod_factor *L, double *X);
         
 	// ************ elimination tree  ************
-	List_G etree;
-	void build_etree(cholmod_factor *L, List_G &etree);
+	vector<Node_G*> etree;
+	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
+	int find_level(Node_G *nd, int & max_depth);
+	void find_max_depth(vector<Node_G*> &etree);
 #if 0	
 	// ****************functions and members for sp_v methods ***
         Path_Graph pg;

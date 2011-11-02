@@ -3,29 +3,30 @@ using namespace std;
 
 Node_G::Node_G(){
    value = 0;
-   n_child = 0;
    level = 0;
-   parent=NULL;
+   parent.clear();
+   children =NULL;
 }
 
 Node_G::Node_G(int var){
 	value = var;
-	n_child = 0;
 	level = 0;
-	parent = NULL;
+	parent.clear();
+	children = NULL;
 }
 
 Node_G::~Node_G(){
-	parent = NULL;
+	parent.clear();
+	children = NULL;
 }
 
 ostream & operator << (ostream & os, const Node_G & node){
-      os <<node.value<<" "<<node.n_child<<" "<<node.level<<endl;  
+      os <<node.value<<" "<<node.level<<endl;  
       return os;
 }
 
 bool Node_G::is_eq( const Node_G *nb){
-   if(value == nb->value && n_child == nb->n_child && level == nb->level)
+   if(value == nb->value && level == nb->level)
       return true;
    else
       return false; 
@@ -48,7 +49,7 @@ void List_G::add_node(Node_G *node){
       last = node;
    }
    else{
-      last->parent = node;
+      last->children = node;
       last = node;
    }
 }
@@ -59,18 +60,18 @@ Node_G * List_G::insert_node(Node_G *node, Node_G *nd){
    p = nd;
    
    while(nd->value <node ->value){
-      if(nd->parent == NULL) break;
-         if(p != nd ) p = p->parent;
-         nd = nd->parent;
+      if(nd->children == NULL) break;
+         if(p != nd ) p = p->children;
+         nd = nd->children;
    }
    // first is the minimum
    if(nd->is_eq(first)){
-    nd->parent = node;
+    nd->children = node;
     p = node; 
    }
    else{
-      p->parent = node;
-      node->parent = nd;
+      p->children = node;
+      node->children = nd;
       p = node;
    }
    return p;
@@ -92,7 +93,7 @@ void List_G::assign_size(){
    size =0;
    while(!(nd->is_eq(last))){
       size++;
-      nd = nd->parent;
+      nd = nd->children;
    }
    size++;
 }
@@ -102,7 +103,7 @@ ostream & operator << (ostream & os, const List_G * list){
    nd = list->first;
    while(!(nd->is_eq(list->last))){
       os << *nd;
-      nd = nd->parent;
+      nd = nd->children;
    }
    os <<*(list->last)<<endl;
    return os;

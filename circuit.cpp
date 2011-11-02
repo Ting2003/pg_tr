@@ -595,9 +595,11 @@ void Circuit::solve_LU_core(Tran &tran){
    delete [] temp;
    /*****************************************/
 //#endif
+   clog<<"before build etree."<<endl;
    // build up elimination tree according to L
    build_etree(L, etree);
-
+   clog<<"after build etree."<<endl;
+   return;
    // bnewp[i] = bp[i]
    start_ptr_assign();
 
@@ -2991,7 +2993,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 }
 #endif
 
-void Circuit::build_etree(cholmod_factor *L, List_G &etree){
+void Circuit::build_etree(cholmod_factor *L, vector<Node_G*> &etree){
    double *Lx;
    int *Li, *Lp, *Lnz;
    int p, q, r, lnz, pend;
@@ -3001,39 +3003,64 @@ void Circuit::build_etree(cholmod_factor *L, List_G &etree){
    Lnz = static_cast<int *>(L->nz);
    int j, k, n = L->n ;
 
-   bool *flag; // flag shows whether this node has been visited
-   flag = new bool[n];
+   etree.clear();
    // first produce all nodes
    Node_G *nd;
    for(j=0;j<n;j++){
 	nd = new Node_G(j);
-	etree.add_node(nd);
-	flag[j] = 0;
+	etree.push_back(nd);
   }
 
-   // find each node's parent, compute its n_child
-   for(j=0; j<n; j++){
-	p = Lp[j];
+  for(j=0;j<n;j++){
+  	p = Lp[j];
 	lnz = Lnz[j];
 	pend = p + lnz;
-	nd = etree_vec[j];
+	nd = etree[Li[p]];
 
-	if(++p<pend){
-		nd->parent = etree[Li[p]];
-		etree[Li[p]]->n_child += 1;
+	if(++p < pend){
+		nd->children = etree[Li[p]]->children;
+		etree[Li[p]]->parent.push_back(nd);
+		//clog<<"nd_parent, nd: "<<*nd<<" "<<*etree[Li[p]]<<endl;
+	} 
+  }
+
+  find_max_depth(etree); 
+   
+}
+
+void Circuit::find_max_depth(vector<Node_G*> &etree){
+	Node_G *nd;
+	int flag =0;
+	int j;
+	int n = replist.size();
+	int max_depth = 0; 
+	for(j=0;j<n;j++){
+		nd = etree[j];
+		if(nd->parent.size()!=0) continue;
+		clog<<endl<<"leaf node: "<<*nd;
+		// locate the leaf node
+		do{
+			flag = find_level(nd, max_depth);
+			if(flag == 1 || nd->children == NULL) break;
+		}while(1);
 	}
-   }
-   for(j=0;j<n;j++){
-	if(flag[j]== true) continue;
-	nd = etree[j];
-	if(nd->parent->n_child == 1){
-		nd->parent->n_child == nd->n_child;
-		flag[nd->parent->value] = true;
-		nd = nd->parent;
-		while(nd->value <n){
-			
-		}
-	}		
-   }
-   delete [] flag;
+	clog<<"max_depth: "<<max_depth<<endl;
+}
+
+// update level info between 2 nodes: nd and its parent
+int Circuit::find_level(Node_G *nd, int &max_depth){
+	if(nd->children == NULL) return 1;
+	int level = nd->level +1;
+	int diff = level - nd->children->level;
+	clog<<"level_nd, level_parent, diff: "<<nd->level<<" "<<nd->children->level<<" "<<diff<<endl;
+	// update parent level
+	if(diff >0){
+		nd->children->level += diff;
+		max_depth = nd->children->level;
+		return 0;
+	}
+	else if(diff ==0){
+		max_depth = level;
+		return 1;
+	}
 }
