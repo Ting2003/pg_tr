@@ -245,7 +245,12 @@ private:
         void solve_eq(cholmod_factor *L, double *X);
         void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
-        // ****************functions and members for sp_v methods ***
+        
+	// ************ elimination tree  ************
+	List_G etree;
+	void build_elimination tree(cholmod_factor *L, List_G &etree);
+	
+	// ****************functions and members for sp_v methods ***
         Path_Graph pg;
         int *path_b, *path_x;
         int *id_map;

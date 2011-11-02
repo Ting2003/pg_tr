@@ -601,7 +601,9 @@ void Circuit::solve_LU_core(Tran &tran){
    delete [] temp;
    /*****************************************/
 //#endif
-    
+   // build up elimination tree according to L
+   build_etree(L, etree);
+
    // bnewp[i] = bp[i]
    start_ptr_assign();
 
