@@ -2992,4 +2992,48 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 #endif
 
 void Circuit::build_etree(cholmod_factor *L, List_G &etree){
+   double *Lx;
+   int *Li, *Lp, *Lnz;
+   int p, q, r, lnz, pend;
+   Lp = static_cast<int *>(L->p);
+   Lx = static_cast<double*> (L->x);
+   Li = static_cast<int*>(L->i) ;
+   Lnz = static_cast<int *>(L->nz);
+   int j, k, n = L->n ;
+
+   bool *flag; // flag shows whether this node has been visited
+   flag = new bool[n];
+   // first produce all nodes
+   Node_G *nd;
+   for(j=0;j<n;j++){
+	nd = new Node_G(j);
+	etree.add_node(nd);
+	flag[j] = 0;
+  }
+
+   // find each node's parent, compute its n_child
+   for(j=0; j<n; j++){
+	p = Lp[j];
+	lnz = Lnz[j];
+	pend = p + lnz;
+	nd = etree_vec[j];
+
+	if(++p<pend){
+		nd->parent = etree[Li[p]];
+		etree[Li[p]]->n_child += 1;
+	}
+   }
+   for(j=0;j<n;j++){
+	if(flag[j]== true) continue;
+	nd = etree[j];
+	if(nd->parent->n_child == 1){
+		nd->parent->n_child == nd->n_child;
+		flag[nd->parent->value] = true;
+		nd = nd->parent;
+		while(nd->value <n){
+			
+		}
+	}		
+   }
+   delete [] flag;
 }

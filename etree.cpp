@@ -7,6 +7,18 @@ Node_G::Node_G(){
    level = 0;
    parent=NULL;
 }
+
+Node_G::Node_G(int var){
+	value = var;
+	n_child = 0;
+	level = 0;
+	parent = NULL;
+}
+
+Node_G::~Node_G(){
+	parent = NULL;
+}
+
 ostream & operator << (ostream & os, const Node_G & node){
       os <<node.value<<" "<<node.n_child<<" "<<node.level<<endl;  
       return os;
@@ -36,7 +48,6 @@ void List_G::add_node(Node_G *node){
       last = node;
    }
    else{
-
       last->parent = node;
       last = node;
    }

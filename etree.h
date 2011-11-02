@@ -10,6 +10,8 @@ public:
    Node_G * parent; // point to its parent
 
    Node_G();
+   Node_G(int var);  
+   ~Node_G(); 
    friend ostream & operator<<(ostream &os, const Node_G &node);
    bool is_eq(const Node_G *nb);
 };
