@@ -4,9 +4,15 @@
 #include <utility>
 #include <limits>
 #include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
 #include <pthread.h>
 #include "omp.h"
 using std::pair;
+using namespace std;
 // important: each node has at most 4 connected nets
 enum DIRECTION{WEST, EAST, SOUTH, NORTH, BOTTOM, TOP, UNDEFINED};
 enum NET_TYPE{RESISTOR, CURRENT, VOLTAGE, CAPACITANCE, INDUCTANCE};

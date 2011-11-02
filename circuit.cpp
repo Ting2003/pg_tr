@@ -54,10 +54,7 @@ Circuit::Circuit(string _name):name(_name),
 
 	for(int i=0;i<MAX_LAYER;i++)
 		layer_dir[i]=NA;
-	path_b = NULL;
-	path_x = NULL;
 	id_map = NULL;
-	flag_ck = 0;
 }
 
 // Trick: do not release memory to increase runtime
@@ -67,8 +64,6 @@ Circuit::~Circuit(){
 		NetPtrVector & ns = net_set[type];
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
-	free(path_b);
-	free(path_x);
 	free(id_map);
 }
 
@@ -570,7 +565,6 @@ void Circuit::solve_LU_core(Tran &tran){
  
    double time = 0;
    int iter = 0;
-   flag_ck = 0;  
    stamp_by_set_tr(A, bp, tran);
    make_A_symmetric_tr(bp, xp, tran);
    
@@ -610,43 +604,10 @@ void Circuit::solve_LU_core(Tran &tran){
    //stamp_current_tr(bnewp, tran, time);
    modify_rhs_tr(bnewp, xp, tran, iter);
 
-     t1 = clock();
-   if(flag_ck ==1){
-      // push rhs node into node_set b
-      for(size_t i=0;i<n;i++){
-         if(bnewp[i] !=0)
-            pg.node_set_b.push_back(i);
-      } 
-
-      // push back all nodes in output list
-      vector<size_t>::iterator it;
-      size_t id;
-      for(size_t i=0;i<tran.nodes.size();i++){
-         if(tran.nodes[i].node == NULL) continue;
-         if(!tran.nodes[i].node->rep->is_ground()){
-            id = tran.nodes[i].node->rep->rid;
-            it = find(pg.node_set_x.begin(), pg.node_set_x.end(), id);
-            if(it == pg.node_set_x.end()){
-               pg.node_set_x.push_back(id);
-            }
-         } 
-      }
-      
-      // get path_b, path_x, len_path_b, len_path_x
-      build_path_graph(L);
-      clog<<"len_b, x to n: "<<len_path_b<<" "<<
-        len_path_x<<" "<<n<<endl;
-   }
-   t2 = clock();
-   clog<<"build up path time: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-   
    clock_t s, e;
    s = clock();
    
-   if(flag_ck ==0)
-      solve_eq(L, xp);
-   else
-      solve_eq_sp(L, xp);
+   solve_eq(L, xp);
    
    e = clock();
    clog<<"time for solve_tr: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
@@ -664,10 +625,7 @@ void Circuit::solve_LU_core(Tran &tran){
       stamp_current_tr_1(bp, bnewp, tran, time);
       modify_rhs_tr(bnewp, xp, tran, iter);
 
-      if(flag_ck ==0)
-         solve_eq(L, xp);
-      else
-         solve_eq_sp(L, xp);
+      solve_eq(L, xp);
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
@@ -2491,7 +2449,7 @@ void *Circuit::ptr_assign_1(){
 void *Circuit::call_ptr_assign_1(void *arg){
    return ((Circuit*)arg)->ptr_assign_1();
 }
-void Circuit::parse_path_table(){
+/*void Circuit::parse_path_table(){
    // build up nodelist info
       Node_G *node;
       for(int i=0;i<replist.size();i++){
@@ -2673,11 +2631,11 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
    //clog<<endl;
    insert_list.clear();
 }
-
+*/
 bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2){
   return (nd_1->value < nd_2->value); 
 }
-void Circuit::update_node_set_bx(){
+/*void Circuit::update_node_set_bx(){
    int id = 0;
    //clog<<"len_node_set_b. "<<pg.node_set_b.size();
    for(int i=0;i<pg.node_set_b.size();i++){
@@ -2692,260 +2650,7 @@ void Circuit::update_node_set_bx(){
       pg.node_set_x[i] = id_map[id];
       //clog<<"x_old, x_new: "<<id<<" "<<id_map[id]<<endl;
    }
-}
-void Circuit::solve_eq_sp(cholmod_factor *L, double *X){
-   double *Lx;
-   int *Li, *Lp, *Lnz;
-   int p, q, r, lnz, pend;
-   Lp = static_cast<int *>(L->p);
-   Lx = static_cast<double*> (L->x);
-   Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
-   int j, k, n = L->n ;
-   for(size_t i=0;i<n;i++){
-      X[i] = bnewp[i];
-   }
-   // FFS solve
-   for(k=0; k < len_path_b;){
-      j = path_b[k];
-      //for (j = 0 ; j < n ; ){
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      if (lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-
-         double y = X [j] ;
-         if(L->is_ll == true){
-            X[j] /= Lx [p] ;
-         }
-
-         for (p++ ; p < pend ; p++)
-         {
-            X [Li [p]] -= Lx [p] * y ;
-         }
-         k++ ;	/* advance to next column of L */
-
-      }
-//#if 0
-      else if (lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [2] ;
-         q = Lp [j+1] ;
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-         }
-
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            X [j+1] = y [1] ;
-         }
-         for (p += 2, q++ ; p < pend ; p++, q++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
-         }
-
-         // if the next column is already done by supernodal
-         // skip one column
-         if(j+1 == path_b[k+1])
-            k += 2 ;	    /* advance to next column of L */
-         else
-            k++;
-
-      }
-//#if 0
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3] ;
-         q = Lp [j+1] ;
-         r = Lp [j+2] ;
-         //#ifdef LL
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            y [2] = X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-         for (p += 3, q += 2, r++ ; p < pend ; p++, q++, r++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] + Lx [r] * y [2] ;
-         }
-         if(j+2 == path_b[k+2]){
-            // marched to next 2 columns of L
-            k += 3;
-         }
-         else if(j+2 == path_b[k+1] || j+1 == path_b[k+1])
-            k += 2;
-         else 
-            k++;
-         //j += 3 ;	    /* advance to next column of L */
-      }
-//#endif
-   }
-   // FBS solve
-   for(k = len_path_x - 1; k >=0;){
-      j = path_x[k];
-      //for(j = n-1; j >= 0; ){
-
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      /* find a chain of supernodes (up to j, j-1, and j-2) */
-
-       if (j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-
-         double y = X [j] ;
-         double d = Lx [p] ;
-         if(L->is_ll == false)
-            X[j] /= d ;
-         for (p++ ; p < pend ; p++)
-         {
-            X[j] -= Lx [p] * X [Li [p]] ;
-         }
-         if(L->is_ll == true)
-            X [j] /=  d ;
-         k--;
-      }
-//#if 0
-      else if (lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [2], t ;
-         q = Lp [j-1] ;
-         double d [2] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         t = Lx [q+1] ;
-         if(L->is_ll == false){
-            y [0] = X [j  ] / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-         }
-         else{
-            y [0] = X [j  ] ;
-            y [1] = X [j-1] ;
-         }
-         for (p++, q += 2 ; p < pend ; p++, q++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t * y [0]) / d [1] ;
-         }
-         else
-            y [1] -= t * y [0] ;
-         X [j  ] = y [0] ;
-         X [j-1] = y [1] ;
-         
-         if(j-1 == path_x[k-1])
-            k -= 2;
-         else
-            k--;
-         //j -= 2 ;	    /* advance to the next column of L */
-
-      }
-//#if 0
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3], t [3] ;
-         q = Lp [j-1] ;
-         r = Lp [j-2] ;
-         double d [3] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         d [2] = Lx [r] ;
-         t [0] = Lx [q+1] ;
-         t [1] = Lx [r+1] ;
-         t [2] = Lx [r+2] ;
-         if(L->is_ll == false){
-            y [0] = X [j]   / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-            y [2] = X [j-2] / d [2] ;
-         }
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j-1] ;
-            y [2] = X [j-2] ;
-         }
-         for (p++, q += 2, r += 3 ; p < pend ; p++, q++, r++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-            y [2] -= Lx [r] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t [0] * y [0]) / d [1] ;
-            y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
-         }
-         else{
-            y [1] -= t [0] * y [0] ;
-            y [2] -= t [2] * y [0] + t [1] * y [1] ;
-         }
-         X [j-2] = y [2] ;
-         X [j-1] = y [1] ;
-         X [j  ] = y [0] ;
-         if(j-2 == path_x[k-2]){
-            k -= 3;
-         }
-         else if(j-2 == path_x[k-1] || j-1 == path_b[k-1])
-               k -= 2;
-         else
-            k--;
-         //j -= 3 ;	    /* advance to the next column of L */
-      } 
-//#endif
-   }
-}
+}*/
 
 void Circuit::solve_eq(cholmod_factor *L, double *X){
    double *Lx;
@@ -3285,3 +2990,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
     //}
 }
 #endif
+
+void Circuit::build_etree(cholmod_factor *L, List_G &etree){
+}

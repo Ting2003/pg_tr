@@ -28,8 +28,7 @@
 #include "block.h"
 #include "transient.h"
 #include "cholmod.h"
-#include "sp_graph_table.h"
-#include "sp_node.h"
+#include "etree.h"
 #include <algorithm>
 
 using namespace std;
@@ -237,34 +236,36 @@ private:
         size_t start[NTHREADS];
         size_t end[NTHREADS];
         int my_id;
+
+        int *id_map;
         cholmod_factor *L;
         cholmod_common c, *cm;
         cholmod_dense *b, *x, *bnew;
         double *bp, *xp;
         double *bnewp;
         void solve_eq(cholmod_factor *L, double *X);
-        void solve_eq_sp(cholmod_factor *L, double *X);
-	void solve_eq_pr(cholmod_factor *L, double *X);
+        //void solve_eq_sp(cholmod_factor *L, double *X);
+	//void solve_eq_pr(cholmod_factor *L, double *X);
         
 	// ************ elimination tree  ************
 	List_G etree;
-	void build_elimination tree(cholmod_factor *L, List_G &etree);
-	
+	void build_etree(cholmod_factor *L, List_G &etree);
+#if 0	
 	// ****************functions and members for sp_v methods ***
         Path_Graph pg;
         int *path_b, *path_x;
-        int *id_map;
         int len_path_b, len_path_x;
-        int flag_ck;
-        void update_node_set_bx();
+        
+	void update_node_set_bx();
         void parse_path_table();
         void build_path_graph(cholmod_factor *L);
         void build_FFS_path(cholmod_factor *L);
         void build_FBS_path(cholmod_factor *L);
         void set_up_path_table(cholmod_factor *L);
         void find_path(vector<size_t>&node_set, List_G &path);
-
-        // ************** member variables *******************
+        
+#endif
+	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
 	NetPtrVector net_set[NUM_NET_TYPE];// should be the same as size of NET_TYPE

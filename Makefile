@@ -1,7 +1,7 @@
 CC=g++#mpicxx
 #CPLUSPLUS=g++
 SRC= util.cpp point.cpp node.cpp circuit.cpp net.cpp parser.cpp vec.cpp \
-    main.cpp triplet.cpp algebra.cpp block.cpp transient.cpp sp_node.cpp \
+    main.cpp triplet.cpp algebra.cpp block.cpp transient.cpp etree.cpp #sp_node.cpp \
     sp_graph_table.cpp
 
 #hash_mat.cpp map_mat.cpp 
