@@ -55,6 +55,7 @@ Circuit::Circuit(string _name):name(_name),
 	for(int i=0;i<MAX_LAYER;i++)
 		layer_dir[i]=NA;
 	id_map = NULL;
+	etree.clear();
 }
 
 // Trick: do not release memory to increase runtime
@@ -65,6 +66,9 @@ Circuit::~Circuit(){
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
 	free(id_map);
+	tree.clear();
+	for(size_t i=0;i<etree.size();i++) 
+		delete etree[i];
 }
 
 void Circuit::check_sys() const{
@@ -3024,11 +3028,11 @@ void Circuit::build_etree(cholmod_factor *L, vector<Node_G*> &etree){
 	} 
   }
   // assign super nodes level
-  find_super_node_level(etree); 
+  build_tree(etree); 
 }
 
 // locate root node, and find max_depth
-void Circuit::find_super_node_level(vector<Node_G*> &etree){
+void Circuit::build_tree(vector<Node_G*> &etree){
 	Node_G *nd;
 	int flag =0;
 	int j;
@@ -3043,7 +3047,6 @@ void Circuit::find_super_node_level(vector<Node_G*> &etree){
 	for(j=0;j<n;j++){
 		nd = etree[j];
 		if(nd->parent.size()!=0) continue;
-		cout<<endl<<"leaf node: "<<*nd;
 		// locate the leaf node
 		do{
 			flag = find_level(nd);
@@ -3064,19 +3067,19 @@ void Circuit::find_super_node_level(vector<Node_G*> &etree){
 		}while(1);
 	}
 	delete [] done;
-	//for(j=0;j<root.size();j++)
-		//clog<<*root[j];
-//#if 0
 	// then converse scan
 	for(j=0;j<root.size();j++){
 		nd = root[j];
-		//clog<<endl<<"root node: "<<*nd;
-		find_level_inv(nd);
+		find_level_inv(nd, tree);
 	}
+#if 0
 	for(j=0;j<n;j++){
-		//etree[j]->level = max_depth - etree[j]->level;
 		clog<<*etree[j];
 	}
+	clog<<endl;
+	for(j=0;j<tree.size();j++)
+		clog<<*tree[j]<<endl;
+#endif
 }
 
 // update level info between 2 nodes: nd and its parent
@@ -3085,35 +3088,31 @@ int Circuit::find_level(Node_G *nd){
 	int level=0;
 	//cout<<"parent_size: "<<nd->children->parent.size()<<endl;
 	if(nd->children->parent.size()>1){
-		//cout<<"node: "<<*nd->children; 
 		level = nd->level +1;
-		//cout<<"level: "<<level<<endl;
 	}
 	else if(nd->children->parent.size()==1){
-		//cout<<"node: "<<*nd->children;
 		level = nd->level;
-		//cout<<"level: "<<level<<endl;
 	}
 	int diff = level - nd->children->level;
 	//cout<<"nd, nd_l: "<<*nd<<endl;;
 	//cout<<"parent, parent_l: "<<*nd->children; 
 	// update parent level
-	if(diff >0){
+	if(diff >0)
 		nd->children->level += diff;	
-		return 0;
-	}
-	else if(diff ==0){
-		return 0;
-	}
+	return 0;
 }
 
 // update level info between 2 nodes: nd and its parent
-void Circuit::find_level_inv(Node_G *p){
-	if(p->parent.size() == 0) return;
+void Circuit::find_level_inv(Node_G *p, vector<Node_G*> &tree){
+	if(p->parent.size() == 0){
+		tree.push_back(p);
+		return;
+	}
 	int level=0;
 
 	if(p->parent.size()>1){
 		level = p->level -1;
+		tree.push_back(p);
 	}
 	else if(p->parent.size()==1){
 		level = p->level;
@@ -3129,7 +3128,7 @@ void Circuit::find_level_inv(Node_G *p){
 		Node_G *q;
 		q = p->parent[j];
 		//p = p->parent[j];
-		find_level_inv(q);
+		find_level_inv(q, tree);
 	}
 }
 
