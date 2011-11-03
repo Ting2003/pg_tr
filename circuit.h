@@ -250,10 +250,9 @@ private:
 	// ************ elimination tree  ************
 	vector<Node_G*> etree;
 	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
-	int find_level(Node_G *nd, int & max_depth);
-	int find_level_inv(Node_G *nd);
-	int find_max_depth(vector<Node_G*> &etree);
-	void assign_level(vector<Node_G*> &etree, int &max_depth);
+	int find_level(Node_G *nd);
+	void find_level_inv(Node_G *nd);
+	void find_super_node_level(vector<Node_G*> &etree);
 #if 0	
 	// ****************functions and members for sp_v methods ***
         Path_Graph pg;
