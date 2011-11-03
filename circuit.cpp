@@ -602,9 +602,10 @@ void Circuit::solve_LU_core(Tran &tran){
 //#endif
    clog<<"before build etree."<<endl;
    // build up elimination tree according to L
+   // super node heads are stored in vector<Node_G*> tree
    build_etree(L, etree);
    clog<<"after build etree."<<endl;
-   return;
+   
    // bnewp[i] = bp[i]
    start_ptr_assign();
 
@@ -3072,14 +3073,17 @@ void Circuit::build_tree(vector<Node_G*> &etree){
 		nd = root[j];
 		find_level_inv(nd, tree);
 	}
+	// then sort this tree in ascending order of level
+	sort(tree.begin(), tree.end(), compare_s_level);
 #if 0
 	for(j=0;j<n;j++){
 		clog<<*etree[j];
 	}
 	clog<<endl;
-	for(j=0;j<tree.size();j++)
-		clog<<*tree[j]<<endl;
 #endif
+	for(j=0;j<tree.size();j++)
+		clog<<*tree[j];
+//#endif
 }
 
 // update level info between 2 nodes: nd and its parent
@@ -3132,3 +3136,6 @@ void Circuit::find_level_inv(Node_G *p, vector<Node_G*> &tree){
 	}
 }
 
+bool compare_s_level(const Node_G *nd_1, const Node_G *nd_2){
+  return (nd_1->level < nd_2->level); 
+}

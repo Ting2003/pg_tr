@@ -349,6 +349,8 @@ inline Net * Circuit::get_net(string name){return map_net[name];}
 */
 
 bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2);
+bool compare_s_level(const Node_G *nd_1, const Node_G *nd_2);
+
 bool compare_node_ptr(const Node *a, const Node *b);
 ostream & operator << (ostream & os, const NodePtrVector & nodelist);
 ostream & operator << (ostream & os, const NetPtrVector & nets);
