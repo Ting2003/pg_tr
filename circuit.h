@@ -251,7 +251,9 @@ private:
 	vector<Node_G*> etree;
 	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
 	int find_level(Node_G *nd, int & max_depth);
-	void find_max_depth(vector<Node_G*> &etree);
+	int find_level_inv(Node_G *nd);
+	int find_max_depth(vector<Node_G*> &etree);
+	void assign_level(vector<Node_G*> &etree, int &max_depth);
 #if 0	
 	// ****************functions and members for sp_v methods ***
         Path_Graph pg;

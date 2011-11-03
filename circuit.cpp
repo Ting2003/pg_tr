@@ -574,6 +574,7 @@ void Circuit::solve_LU_core(Tran &tran){
    cholmod_factor *L;
    t1 = omp_get_wtime();
    Algebra::CK_decomp(A, L, cm);
+   //cholmod_print_factor(L, "L", cm);
    
    t2 = omp_get_wtime();
    clog<<"decomp cost: "<<1.0*(t2-t1)<<endl;
@@ -3018,49 +3019,132 @@ void Circuit::build_etree(cholmod_factor *L, vector<Node_G*> &etree){
 	nd = etree[Li[p]];
 
 	if(++p < pend){
-		nd->children = etree[Li[p]]->children;
+		nd->children = etree[Li[p]];
 		etree[Li[p]]->parent.push_back(nd);
 		//clog<<"nd_parent, nd: "<<*nd<<" "<<*etree[Li[p]]<<endl;
 	} 
   }
-
-  find_max_depth(etree); 
+  int max_depth = 0;
+  max_depth = find_max_depth(etree);
+  assign_level(etree, max_depth); 
    
 }
 
-void Circuit::find_max_depth(vector<Node_G*> &etree){
+// locate root node, and find max_depth
+int Circuit::find_max_depth(vector<Node_G*> &etree){
 	Node_G *nd;
 	int flag =0;
 	int j;
 	int n = replist.size();
-	int max_depth = 0; 
+	int max_depth = 0;
+	bool *done;
+	done = new bool[n];
+	for(j=0;j<n;j++)
+		done[j] = false;
+	vector<Node_G *>root;
+
+	// first positive scan
 	for(j=0;j<n;j++){
 		nd = etree[j];
 		if(nd->parent.size()!=0) continue;
-		clog<<endl<<"leaf node: "<<*nd;
+		cout<<endl<<"leaf node: "<<*nd;
 		// locate the leaf node
 		do{
 			flag = find_level(nd, max_depth);
-			if(flag == 1 || nd->children == NULL) break;
+			if(flag ==1) {
+				done[nd->value] = true;
+				root.push_back(nd);
+				break;
+			}
+			nd = nd->children;
+			if(nd->children == NULL){
+				if(done[nd->value] == false){
+					root.push_back(nd);
+					done[nd->value] = true;
+				}
+				
+				 break;
+			}
 		}while(1);
 	}
-	clog<<"max_depth: "<<max_depth<<endl;
+	delete [] done;
+	//for(j=0;j<root.size();j++)
+		//clog<<*root[j];
+//#if 0
+	// then converse scan
+	for(j=0;j<root.size();j++){
+		nd = root[j];
+		//clog<<endl<<"root node: "<<*nd;
+		flag = find_level_inv(nd);
+	}
+	for(j=0;j<n;j++)
+		clog<<*etree[j];
+	return max_depth;
+	//clog<<"max_depth: "<<max_depth<<endl;
 }
 
 // update level info between 2 nodes: nd and its parent
 int Circuit::find_level(Node_G *nd, int &max_depth){
 	if(nd->children == NULL) return 1;
-	int level = nd->level +1;
+	int level=0;
+	//cout<<"parent_size: "<<nd->children->parent.size()<<endl;
+	if(nd->children->parent.size()>1){
+		//cout<<"node: "<<*nd->children; 
+		level = nd->level +1;
+		//cout<<"level: "<<level<<endl;
+	}
+	else if(nd->children->parent.size()==1){
+		//cout<<"node: "<<*nd->children;
+		level = nd->level;
+		//cout<<"level: "<<level<<endl;
+	}
 	int diff = level - nd->children->level;
-	clog<<"level_nd, level_parent, diff: "<<nd->level<<" "<<nd->children->level<<" "<<diff<<endl;
+	//cout<<"nd, nd_l: "<<*nd<<endl;;
+	//cout<<"parent, parent_l: "<<*nd->children; 
 	// update parent level
 	if(diff >0){
 		nd->children->level += diff;
-		max_depth = nd->children->level;
+		if(nd->children->level >max_depth){
+			max_depth = nd->children->level;
+			//cout<<"max_dep: "<<max_depth<<endl;
+		}
 		return 0;
 	}
 	else if(diff ==0){
-		max_depth = level;
-		return 1;
+		return 0;
 	}
+}
+
+// update level info between 2 nodes: nd and its parent
+int Circuit::find_level_inv(Node_G *p){
+	if(p->parent.size() == 0) return 1;
+	int level=0;
+
+	if(p->parent.size()>1){
+		level = p->level -1;
+	}
+	else if(p->parent.size()==1){
+		level = p->level;
+	}
+	//clog<<"level: "<<level<<endl;
+	//clog<<"parent size: "<<p->parent.size()<<endl;
+	
+	for(int j=0;j<p->parent.size();j++){
+		p->parent[j]->level = level;
+		//clog<<"parent node: "<<*p->parent[j];
+	}
+	for(int j=0;j<p->parent.size();j++){
+		Node_G *q;
+		q = p->parent[j];
+		//p = p->parent[j];
+		find_level_inv(q);
+	}
+	return 0;
+	//cout<<"nd, nd_l: "<<*nd<<endl;;
+	//cout<<"parent, parent_l: "<<*nd->children; 
+	// update parent level
+	
+}
+void Circuit::assign_level(vector<Node_G*> &etree, int &max_depth){
+	
 }
