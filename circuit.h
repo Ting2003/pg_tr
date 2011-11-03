@@ -215,6 +215,10 @@ private:
         static void *call_ptr_assign_rid(void *arg);
         void *ptr_assign_rid();
 
+	void start_ptr_solve();
+        static void *call_ptr_solve(void *arg);
+        void *ptr_solve();
+
 	void start_ptr_assign_bp();
         static void *call_ptr_assign_bp(void *arg);
         void *ptr_assign_bp();
@@ -245,8 +249,12 @@ private:
         double *bnewp;
         void solve_eq(cholmod_factor *L, double *X);
         //void solve_eq_sp(cholmod_factor *L, double *X);
-	//void solve_eq_pr(cholmod_factor *L, double *X);
-        
+	void solve_eq_pr(cholmod_factor *L, double *X);
+        void solve_col_FFS(cholmod_factor *L, double *X, int &j,
+	double *Lx, int *Li, int *Lp, int *Lnz);
+	
+	void solve_col_FBS(cholmod_factor *L, double *X, int &j,
+	double *Lx, int *Li, int *Lp, int *Lnz);
 	// ************ elimination tree  ************
 	vector<Node_G*> etree;
 	vector<Node_G *> tree;
