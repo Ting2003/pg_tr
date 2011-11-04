@@ -617,13 +617,15 @@ void Circuit::solve_LU_core(Tran &tran){
    clock_t s, e;
    s = clock();
    
-   solve_eq(L, xp);
+   //solve_eq(L, xp);
+   solve_eq_pr(L, xp);
    
    e = clock();
    clog<<"time for solve_tr: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 
    save_tr_nodes(tran, xp);
-  time += tran.step_t;
+   time += tran.step_t;
+   return;
    s = clock();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 2){
@@ -2901,11 +2903,12 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
 }
 
 // solve with ompenmp
-#if 0
+//#if 0
 void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    double *Lx;
    int *Li, *Lp, *Lnz;
-   int p, q, r, lnz, pend;
+   int q, lnz, pend;
+   int i=0;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
    Li = static_cast<int*>(L->i) ;
@@ -2914,13 +2917,16 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    for(size_t i=0;i<n;i++){
       X[i] = bnewp[i];
    }
-
+   bool *flag;
+    flag = new bool[n];
+   for(int i=0;i<n;i++)
+	flag[i] = false;
+#if 0
     int nthreads, tid; // added by Ting Yu
     int col_abs; // record the original column number for each thread
     // level_tr is the threshold level that can be processed in parallel
     // if level < level_tr, then it is performed in sequential
     
-    int level_tr = 1;
     omp_set_num_threads(12);
 #pragma omp parallel private(tid, col_abs, j, p, lnz, pend)
     {
@@ -2947,41 +2953,66 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		#pragma omp barrier
 	}
     }
+#endif
 
     //********* for the rest of nodes, solve in sequential
     Node_G *nd, *p;
     int col = 0;
     // solve the rest of node in FFS
-    for(i = base_level[tr];i<tree.size();i++){	
-	    // loop all the head nodes in level i
-	    nd = tree[i];
-	    // solve the list connected by head node
-	    while(nd != NULL){
-		    col = nd->value;
-		    solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
-		    nd = nd->children;
-	    }
-    }
-    // then solve these node in FBS
-    for(i = tree.size()-1; i >= base_level[tr]; i--){	
+    for(i = base_level[level_tr];i<tree.size();i++){	
 	    // loop all the head nodes in level i
 	    nd = tree[i];
 	    p = nd;
-	    while(p->children != NULL)
+	    // solve the list connected by head node
+	    while(1){
+		    col = p->value;
+		    //solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
+		    if(p->children->level == p->level)
+		    	p = p->children;
+		    else break;
+	    }
+    }
+    clog<<"finish ffs. "<<endl;
+#if 0
+    // then solve these node in FBS
+    for(i = tree.size()-1; i >= base_level[level_tr]; i--){	
+	    // loop all the head nodes in level i
+	    nd = tree[i];
+	    clog<<endl<<"nd: "<<*nd;
+	    col = nd->value;
+	    //clog<<"col: "<<col<<endl;
+	    p = nd;
+	    while(p->children != NULL){
 		p = p->children;
+	    	clog<<"children: "<<*p;
+	    }
 
 	    // solve the list connected by head node
-	    while(p != nd){
+	    do{
 		    col = p->value;
-		    solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
-		    p = p->parent;
-	    }
+		    clog<<"col: "<<col<<endl;
+		    //clog<<"FBS: "<<*p;
+		    //solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
+		    for(j=0;j<p->parent.size();j++){
+			clog<<"parent: "<<*p->parent[j];	
+			if(p->parent[j]->level == p->level){
+				p = p->parent[j];
+			
+		    		clog<<"col, parent: "<<col<<" "<<p->parent[0]->value<<endl;
+				break;
+			}
+		    }
+		    clog<<"p, nd: "<<*p<<*nd;
+	    }while(p != nd);
 	    // solve nd column
 	    col = nd->value;
-	    solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
+	   //clog<<"FBS: "<<*nd;
+	    //solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
     }
-}
 #endif
+}
+//#endif
+
 // FFS solve
 void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz){
@@ -3131,6 +3162,13 @@ void Circuit::build_tree(vector<Node_G*> &etree){
 		base_level[i] = sum;
 		sum += n_level[i];
 	}
+
+	for(int i=0;i<max_level;i++){
+		if(n_level[i]==1){
+			level_tr = i;
+			break;
+		}
+	}
 #if 0
 	for(j=0;j<max_level;j++)
 		clog<<"n_level, base_level: "<<n_level[j]<<" "<<
@@ -3142,11 +3180,11 @@ void Circuit::build_tree(vector<Node_G*> &etree){
 		clog<<*etree[j];
 	}
 	clog<<endl;
-//#endif
+#endif
 
 	for(j=0;j<tree.size();j++)
 		clog<<*tree[j];
-#endif
+//#endif
 }
 
 // update level info between 2 nodes: nd and its parent
