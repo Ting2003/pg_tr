@@ -2903,55 +2903,147 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
 }
 
 // solve with ompenmp
+// vector<Node_G *> children can be built when build_tree, so that
+// memory will be more, bu the time for solving will be saved
 //#if 0
 void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    double *Lx;
    int *Li, *Lp, *Lnz;
-   int p, lnz, pend;
    int i=0;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
    Li = static_cast<int*>(L->i) ;
    Lnz = static_cast<int *>(L->nz);
-   int j, k, n = L->n ;
+   int n = L->n ;
+   // original rhs
    for(size_t i=0;i<n;i++){
       X[i] = bnewp[i];
    }
    
-    int nthreads, tid; // added by Ting Yu
-    int col_abs; // record the original column number for each thread
-    // level_tr is the threshold level that can be processed in parallel
-    // if level < level_tr, then it is performed in sequential
-    
-    omp_set_num_threads(12);
-#pragma omp parallel private(tid, col_abs, j, p, lnz, pend)
+    int nthreads, tid;
+   
+    //************ parallel FFS *************
+    // num_threads must be 2^power, so that add later can be
+    // done in parallel 
+    omp_set_num_threads(4);
+#pragma omp parallel private(tid, i)
     {
-	double *X_temp;
 	int iter;
-	tid = omp_get_thread_num();
-	X_temp = new double [n];
-	for(i=0;i<n;i++)
-		X_temp[i] = 0;
+	int col, id;
+	int j;
+   	Node_G *nd, *q;
 
+	int p, lnz, pend;
+	double y;
+
+	tid = omp_get_thread_num();
+	
 	for(i=0;i<level_tr;i++){
 		// num is the number of head nodes each level
-		int num = n_level[i];
-		iter = num / omp_get_num_threads();
+		iter = n_level[i] / omp_get_num_threads();
 		// get the iteration numbers of threads
-		if(tid + iter * omp_get_num_threads() < num) 
+		if(tid + iter * omp_get_num_threads() < n_level[i]) 
 			iter ++;
 		
 		for(j=0;j<iter;j++){
-			int id = j;
-			
-		}	
-			
+			id = base_level[i]+ tid +j * omp_get_num_threads();
+			nd = tree[id];
+			q = nd;
+
+			// solve columns lead by head node
+			while(1){
+				col = q->value;
+
+				//****** solve_col_FFS_pr function
+				p = Lp [j] ;
+				lnz = Lnz[j] ;
+				pend = p + lnz ;
+
+				y = X [j] ;
+				if(L->is_ll == true)
+					X[j] /= Lx [p] ;
+				for (p++ ; p < pend ; p++)
+					#pragma omp atomic
+					X [Li [p]] -= Lx [p] * y ;
+				//******* finish solve_col_FFS_pr function
+
+				//solve_col_FFS_pr(L, X, col, Lx, Li, Lp, Lnz);
+				if(q->children == NULL) break;
+				if(q->children->level == q->level)
+					q = q->children;
+				else break;
+			}
+		}
 		// sync after solving a level nodes
 		#pragma omp barrier
 	}
     }
 //#endif
 	solve_single_col(L, X, Lx, Li, Lp, Lnz);
+
+   //***********  parallel FBS ************
+#pragma omp parallel private(tid)
+    {
+	int iter;
+	int col, id, j, k;
+	Node_G *nd, *q;
+
+	int p, lnz, pend;
+	double y, d;
+
+	tid = omp_get_thread_num();
+	vector<Node_G*> children;
+	
+	for(i=level_tr-1;i>=0;i--){
+		// num is the number of head nodes each level
+		iter = n_level[i] / omp_get_num_threads();
+		// get the iteration numbers of threads
+		if(tid + iter * omp_get_num_threads() < n_level[i]) 
+			iter ++;
+		
+		for(j=0;j<iter;j++){
+			id = base_level[i] + tid + j * omp_get_num_threads();
+			nd = tree[id];
+			q = nd;
+			
+			children.push_back(nd);
+			while(1){
+				if(q->children == NULL) break;
+				if(q->children->level == q->level){
+					q = q->children;
+					children.push_back(q);
+				}
+				else break;
+			}
+
+			for(k = children.size()-1; k >= 0; k--){
+				q = children[j];
+				col = q->value;
+
+				//***** solve_col_FBS_pr function
+				p = Lp [j] ;
+				lnz = Lnz [j] ;
+				pend = p + lnz ;
+
+				y = X [j] ;
+				d = Lx [p] ;
+				if(L->is_ll == false)
+					X[j] /= d ;
+				for (p++ ; p < pend ; p++)
+					#pragma omp atomic
+					X[j] -= Lx [p] * X [Li [p]] ;
+				if(L->is_ll == true)
+					X [j] /=  d ;
+				//***** finish solve_col_FBS_pr function
+
+				//solve_col_FBS_pr(L, X, col, Lx, Li, Lp, Lnz);
+			}
+			children.clear();
+		}
+		// sync after solving a level nodes
+		#pragma omp barrier
+	}
+    }
 }
 
 // solve rest columns with FFS and FBS
@@ -3238,3 +3330,42 @@ void Circuit::find_level_inv(Node_G *p, vector<Node_G*> &tree){
 bool compare_s_level(const Node_G *nd_1, const Node_G *nd_2){
   return (nd_1->level < nd_2->level); 
 }
+
+#if 0
+// FFS solve
+void Circuit::solve_col_FFS_pr(cholmod_factor *L, double *X, int &j,
+	double *Lx, int *Li, int *Lp, int *Lnz){
+   int p, lnz, pend;
+   
+   p = Lp [j] ;
+   lnz = Lnz[j] ;
+   pend = p + lnz ;
+
+   double y = X [j] ;
+   if(L->is_ll == true)
+	   X[j] /= Lx [p] ;
+   for (p++ ; p < pend ; p++)
+   	#pragma omp atomic
+	   X [Li [p]] -= Lx [p] * y ;
+}
+
+// FBS solve
+void Circuit::solve_col_FBS_pr(cholmod_factor *L, double *X, int &j,
+	double *Lx, int *Li, int *Lp, int *Lnz){
+   int p, lnz, pend;
+   
+   p = Lp [j] ;
+   lnz = Lnz [j] ;
+   pend = p + lnz ;
+
+   double y = X [j] ;
+   double d = Lx [p] ;
+   if(L->is_ll == false)
+	   X[j] /= d ;
+   for (p++ ; p < pend ; p++)
+	#pragma omp atomic
+	   X[j] -= Lx [p] * X [Li [p]] ;
+   if(L->is_ll == true)
+	   X [j] /=  d ;
+}
+#endif
