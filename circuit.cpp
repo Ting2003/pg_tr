@@ -617,14 +617,15 @@ void Circuit::solve_LU_core(Tran &tran){
    clock_t s, e;
    s = clock();
    
-   //solve_eq(L, xp);
-   solve_eq_pr(L, xp);
+   solve_eq(L, xp);
+   //solve_eq_pr(L, xp);
    
    e = clock();
    clog<<"time for solve_tr: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 
    save_tr_nodes(tran, xp);
    time += tran.step_t;
+   return;
    s = clock();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 2){
@@ -2783,8 +2784,6 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
       //#endif
    }
 
-   for(j=0;j<n;j++)
-	cout<<"i, x after eq ffs: "<<j<<" "<<X[j]<<endl;
    // FBS solve
    for(j = n-1; j >= 0; ){
 
@@ -2925,6 +2924,8 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    }
    
     int nthreads, tid;
+
+    level_tr = 0;	
    
     //************ parallel FFS *************
     // num_threads must be 2^power, so that add later can be
@@ -2942,7 +2943,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	double y;
 
 	tid = omp_get_thread_num();
-	
 	for(i=0;i<level_tr;i++){
 		// num is the number of head nodes each level
 		iter = n_level[i] / omp_get_num_threads();
@@ -2991,7 +2991,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 			}
 		}
 		// sync after solving a level nodes
-		#pragma omp barrier
+		//#pragma omp barrier
 	}
     }
 //#endif
