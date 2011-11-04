@@ -258,6 +258,8 @@ private:
 	// ************ elimination tree  ************
 	vector<Node_G*> etree;
 	vector<Node_G *> tree;
+	int *n_level;
+	int *base_level;
 	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
 	int find_level(Node_G *nd);
 	void find_level_inv(Node_G *nd, vector<Node_G*> &tree);

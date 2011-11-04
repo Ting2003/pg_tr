@@ -56,6 +56,8 @@ Circuit::Circuit(string _name):name(_name),
 		layer_dir[i]=NA;
 	id_map = NULL;
 	etree.clear();
+	n_level = NULL;
+	base_level = NULL;
 }
 
 // Trick: do not release memory to increase runtime
@@ -69,6 +71,8 @@ Circuit::~Circuit(){
 	tree.clear();
 	for(size_t i=0;i<etree.size();i++) 
 		delete etree[i];
+	delete [] n_level;
+	delete [] base_level;
 }
 
 void Circuit::check_sys() const{
@@ -2897,7 +2901,7 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
 }
 
 // solve with ompenmp
-//#if 0
+#if 0
 void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    double *Lx;
    int *Li, *Lp, *Lnz;
@@ -2913,9 +2917,10 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 
     int nthreads, tid; // added by Ting Yu
     int col_abs; // record the original column number for each thread
-
     // level_tr is the threshold level that can be processed in parallel
     // if level < level_tr, then it is performed in sequential
+    
+    int level_tr = 1;
     omp_set_num_threads(12);
 #pragma omp parallel private(tid, col_abs, j, p, lnz, pend)
     {
@@ -2923,7 +2928,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	int iter;
 	tid = omp_get_thread_num();
 	X_temp = new double [n];
-	for(int i=0;i<n;i++)
+	for(i=0;i<n;i++)
 		X_temp[i] = 0;
 	for(i=0;i<level_tr;i++){
 		// num is the number of head nodes each level
@@ -2976,7 +2981,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	    solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
     }
 }
-
+#endif
 // FFS solve
 void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz){
@@ -3082,21 +3087,63 @@ void Circuit::build_tree(vector<Node_G*> &etree){
 		}while(1);
 	}
 	delete [] done;
+	
 	// then converse scan
-//#if 0
+	int max_level = 0;
 	for(j=0;j<root.size();j++){
 		nd = root[j];
+		if(nd->level > max_level)
+			max_level = nd->level;
 		find_level_inv(nd, tree);
 	}
-//#endif
+	max_level += 1;
+	
 	// then sort this tree in ascending order of level
 	sort(tree.begin(), tree.end(), compare_s_level);
+
+	// find n_level and base_level
+	n_level = new int[max_level];
+	base_level = new int [max_level];
+	for(j=0;j<max_level;j++){
+		n_level[j] = 0;
+		base_level[j] = 0;
+	}
+		
+	int i=0;
+	Node_G *p;
+	do{
+		nd = tree[i];
+		for(j=i;j<tree.size();j++){
+			p = tree[j];
+			if(nd->level == p->level){
+				n_level[p->level]++;
+			}
+			else
+				break;
+			i++;
+		}
+		if(j == tree.size())
+			break;
+	}while(1);
+
+	int sum = 0;
+	for(int i=0;i<max_level;i++){
+		base_level[i] = sum;
+		sum += n_level[i];
+	}
+#if 0
+	for(j=0;j<max_level;j++)
+		clog<<"n_level, base_level: "<<n_level[j]<<" "<<
+		base_level[j]<<endl;
+#endif
+
 #if 0
 	for(j=0;j<n;j++){
 		clog<<*etree[j];
 	}
 	clog<<endl;
 //#endif
+
 	for(j=0;j<tree.size();j++)
 		clog<<*tree[j];
 #endif
