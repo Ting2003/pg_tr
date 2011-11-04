@@ -2966,22 +2966,19 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	    // solve the list connected by head node
 	    while(1){
 		    col = p->value;
-		    //solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
+		    solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
 		    if(p->children == NULL) break;
 		    if(p->children->level == p->level)
 		    	p = p->children;
 		    else break;
 	    }
     }
-    clog<<"finish ffs. "<<endl;
 
-//#if 0
     // then solve these node in FBS
     vector<Node_G *> children;
     for(i = tree.size()-1; i >= base_level[level_tr]; i--){	
 	    // loop all the head nodes in level i
 	    nd = tree[i];
-	    //clog<<endl<<"nd: "<<*nd;
 	    p = nd;
 	    children.push_back(nd);
 	    while(1){
@@ -2989,7 +2986,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		if(p->children->level == p->level){
 			p = p->children;
 			children.push_back(p);
-	    		//clog<<"children: "<<*p;
 		}
 		else break;	
 	    }
@@ -2998,13 +2994,10 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	    for(j=children.size()-1; j>=0; j--){
 		    p = children[j];
 		    col = p->value;
-		    //clog<<"FFS col: "<<col<<endl;
-		    //clog<<"FBS: "<<*p;
-		    //solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
+		    solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
 	    }
 	    children.clear();
     }
-//#endif
 }
 //#endif
 
@@ -3177,8 +3170,8 @@ void Circuit::build_tree(vector<Node_G*> &etree){
 	clog<<endl;
 #endif
 
-	for(j=0;j<tree.size();j++)
-		clog<<*tree[j];
+	//for(j=0;j<tree.size();j++)
+		//clog<<*tree[j];
 //#endif
 }
 
