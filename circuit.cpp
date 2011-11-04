@@ -2907,7 +2907,7 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
 void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    double *Lx;
    int *Li, *Lp, *Lnz;
-   int q, lnz, pend;
+   int p, lnz, pend;
    int i=0;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
@@ -2917,11 +2917,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    for(size_t i=0;i<n;i++){
       X[i] = bnewp[i];
    }
-   bool *flag;
-    flag = new bool[n];
-   for(int i=0;i<n;i++)
-	flag[i] = false;
-#if 0
+   
     int nthreads, tid; // added by Ting Yu
     int col_abs; // record the original column number for each thread
     // level_tr is the threshold level that can be processed in parallel
@@ -2936,6 +2932,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	X_temp = new double [n];
 	for(i=0;i<n;i++)
 		X_temp[i] = 0;
+
 	for(i=0;i<level_tr;i++){
 		// num is the number of head nodes each level
 		int num = n_level[i];
@@ -2953,8 +2950,14 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		#pragma omp barrier
 	}
     }
-#endif
+//#endif
+	solve_single_col(L, X, Lx, Li, Lp, Lnz);
+}
 
+// solve rest columns with FFS and FBS
+void Circuit::solve_single_col(cholmod_factor*L, double *X, double *Lx,
+	int *Li, int *Lp, int *Lnz){
+    int i, j, n = L->n ;   
     //********* for the rest of nodes, solve in sequential
     Node_G *nd, *p;
     int col = 0;

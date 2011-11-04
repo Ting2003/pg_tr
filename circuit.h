@@ -250,7 +250,11 @@ private:
         void solve_eq(cholmod_factor *L, double *X);
         //void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
-        void solve_col_FFS(cholmod_factor *L, double *X, int &j,
+        
+	void solve_single_col(cholmod_factor*L, double *X, double*Lx,
+		int *Li, int *Lp, int *Lnz);
+
+	void solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz);
 	
 	void solve_col_FBS(cholmod_factor *L, double *X, int &j,
