@@ -625,7 +625,6 @@ void Circuit::solve_LU_core(Tran &tran){
 
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-   return;
    s = clock();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 2){
@@ -637,7 +636,8 @@ void Circuit::solve_LU_core(Tran &tran){
       stamp_current_tr_1(bp, bnewp, tran, time);
       modify_rhs_tr(bnewp, xp, tran, iter);
 
-      solve_eq(L, xp);
+      //solve_eq(L, xp);
+      solve_eq_pr(L, xp);
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
@@ -2782,6 +2782,9 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
       }
       //#endif
    }
+
+   for(j=0;j<n;j++)
+	cout<<"i, x after eq ffs: "<<j<<" "<<X[j]<<endl;
    // FBS solve
    for(j = n-1; j >= 0; ){
 
@@ -2918,6 +2921,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    // original rhs
    for(size_t i=0;i<n;i++){
       X[i] = bnewp[i];
+       //cout<<"i, X: "<<i<<" "<<X[i]<<endl;
    }
    
     int nthreads, tid;
@@ -2925,12 +2929,13 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
     //************ parallel FFS *************
     // num_threads must be 2^power, so that add later can be
     // done in parallel 
-    omp_set_num_threads(4);
-#pragma omp parallel private(tid, i)
+    omp_set_num_threads(16);
+#pragma omp parallel private(tid, i)\
+	shared(X)
     {
 	int iter;
 	int col, id;
-	int j;
+	int j, k;
    	Node_G *nd, *q;
 
 	int p, lnz, pend;
@@ -2944,15 +2949,19 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		// get the iteration numbers of threads
 		if(tid + iter * omp_get_num_threads() < n_level[i]) 
 			iter ++;
+		//clog<<"tid, iter: "<<tid<<" "<<iter<<endl;
+			
 		
-		for(j=0;j<iter;j++){
-			id = base_level[i]+ tid +j * omp_get_num_threads();
+		for(k=0;k<iter;k++){
+			id = base_level[i]+ tid +k * omp_get_num_threads();
 			nd = tree[id];
 			q = nd;
 
+			//clog<<"tid, col: "<<tid<<" "<<nd->value<<endl;
+
 			// solve columns lead by head node
 			while(1){
-				col = q->value;
+				j = q->value;
 
 				//****** solve_col_FFS_pr function
 				p = Lp [j] ;
@@ -2960,11 +2969,18 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 				pend = p + lnz ;
 
 				y = X [j] ;
-				if(L->is_ll == true)
+				if(L->is_ll == true){
 					X[j] /= Lx [p] ;
-				for (p++ ; p < pend ; p++)
+				}
+
+				  //cout<<"j, X: "<<j<<" "<<X[j]<<endl;
+//#if 0
+				for ( ++p ; p < pend ; p++){	
+					  //cout<<"aij, j, i, Xj, Xi: "<<Lx[p]<<" "<<j<<" "<<Li[p]<<" "<<y<<" "<<X[Li[p]]<<" "<<endl;
 					#pragma omp atomic
 					X [Li [p]] -= Lx [p] * y ;
+				}
+//#endif
 				//******* finish solve_col_FFS_pr function
 
 				//solve_col_FFS_pr(L, X, col, Lx, Li, Lp, Lnz);
@@ -2979,13 +2995,14 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 	}
     }
 //#endif
-	solve_single_col(L, X, Lx, Li, Lp, Lnz);
+    solve_single_col(L, X, Lx, Li, Lp, Lnz);
+    //return;
 
    //***********  parallel FBS ************
 #pragma omp parallel private(tid)
     {
 	int iter;
-	int col, id, j, k;
+	int col, id, j, k, m;
 	Node_G *nd, *q;
 
 	int p, lnz, pend;
@@ -3001,8 +3018,8 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		if(tid + iter * omp_get_num_threads() < n_level[i]) 
 			iter ++;
 		
-		for(j=0;j<iter;j++){
-			id = base_level[i] + tid + j * omp_get_num_threads();
+		for(m=0;m<iter;m++){
+			id = base_level[i] + tid + m * omp_get_num_threads();
 			nd = tree[id];
 			q = nd;
 			
@@ -3029,7 +3046,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 				d = Lx [p] ;
 				if(L->is_ll == false)
 					X[j] /= d ;
-				for (p++ ; p < pend ; p++)
+				for (++ p ; p < pend ; p++)
 					#pragma omp atomic
 					X[j] -= Lx [p] * X [Li [p]] ;
 				if(L->is_ll == true)
@@ -3044,6 +3061,8 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
 		#pragma omp barrier
 	}
     }
+    //for(i=0;i<n;i++)
+	//cout<<"i, x after ffs: "<<i<<" "<<X[i]<<endl;
 }
 
 // solve rest columns with FFS and FBS
@@ -3061,6 +3080,7 @@ void Circuit::solve_single_col(cholmod_factor*L, double *X, double *Lx,
 	    // solve the list connected by head node
 	    while(1){
 		    col = p->value;
+		    //clog<<"solve col: "<<col<<endl;
 		    solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
 		    if(p->children == NULL) break;
 		    if(p->children->level == p->level)
@@ -3068,7 +3088,8 @@ void Circuit::solve_single_col(cholmod_factor*L, double *X, double *Lx,
 		    else break;
 	    }
     }
-
+    //for(i=0;i<n;i++)
+	//cout<<"i, x after ffs: "<<i<<" "<<X[i]<<endl;
     // then solve these node in FBS
     vector<Node_G *> children;
     for(i = tree.size()-1; i >= base_level[level_tr]; i--){	
@@ -3100,7 +3121,9 @@ void Circuit::solve_single_col(cholmod_factor*L, double *X, double *Lx,
 void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz){
    int p, lnz, pend;
-   
+   //for(int i=0;i<L->n;i++) 
+	//cout<<"i, X: "<<i<<" "<<X[i]<<endl;
+
    p = Lp [j] ;
    lnz = Lnz[j] ;
    pend = p + lnz ;
@@ -3108,9 +3131,11 @@ void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
    double y = X [j] ;
    if(L->is_ll == true)
 	   X[j] /= Lx [p] ;
+   //cout<<"j, X: "<<j<<" "<<X[j]<<endl;
 
-   for (p++ ; p < pend ; p++)
+   for (++p ; p < pend ; p++){
 	   X [Li [p]] -= Lx [p] * y ;
+  }
 }
 
 // FBS solve
@@ -3126,7 +3151,7 @@ void Circuit::solve_col_FBS(cholmod_factor *L, double *X, int &j,
    double d = Lx [p] ;
    if(L->is_ll == false)
 	   X[j] /= d ;
-   for (p++ ; p < pend ; p++)
+   for (++p ; p < pend ; p++)
 	   X[j] -= Lx [p] * X [Li [p]] ;
    if(L->is_ll == true)
 	   X [j] /=  d ;
