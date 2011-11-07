@@ -56,8 +56,10 @@ Circuit::Circuit(string _name):name(_name),
 		layer_dir[i]=NA;
 	id_map = NULL;
 	etree.clear();
-	bold = NULL;
-	flag_col = NULL;
+	Lx = NULL;
+	Li = NULL;
+	Lp = NULL;
+	Lnz = NULL;
 }
 
 // Trick: do not release memory to increase runtime
@@ -71,8 +73,10 @@ Circuit::~Circuit(){
 	tree.clear();
 	for(size_t i=0;i<etree.size();i++) 
 		delete etree[i];
-	delete [] bold;
-	delete [] flag_col;
+	Lx = NULL;
+	Li = NULL;
+	Lp = NULL;
+	Lnz = NULL;
 }
 
 void Circuit::check_sys() const{
@@ -550,10 +554,8 @@ void Circuit::solve_LU_core(Tran &tran){
    stamp_by_set(A, bp);
    make_A_symmetric(bp);
    A.set_row(n);
-   Algebra::solve_CK(A, x, b, cm);
+   Algebra::solve_CK(A, L, x, b, cm);
    xp = static_cast<double *> (x->x);
-   //for(size_t i=0;i<n;i++)
-      //clog<<"i, xp: "<<i<<" "<<xp[i]<<endl;
    
    // print out dc solution
    //cout<<"dc solution. "<<endl;
@@ -577,19 +579,24 @@ void Circuit::solve_LU_core(Tran &tran){
    stamp_current_tr(bp, tran, time);
    
    double t1, t2;
-   //cholmod_factor *L;
    t1 = omp_get_wtime();
    Algebra::CK_decomp(A, L, cm);
+   Lp = static_cast<int *>(L->p);
+   Lx = static_cast<double*> (L->x);
+   Li = static_cast<int*>(L->i) ;
+   Lnz = static_cast<int *>(L->nz);
+
    //cholmod_print_factor(L, "L", cm);
    
    t2 = omp_get_wtime();
    clog<<"decomp cost: "<<1.0*(t2-t1)<<endl;
    A.clear();
+//#if 0 
+   /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
    id_map = new int [n];
    cholmod_build_id_map(CHOLMOD_A, L, cm, id_map);
 
-   /*********** the following 2 parts can be implemented with pthreads ***/
    temp = new double [n];
    // then substitute all the nodes rid
    start_ptr_assign_rid();
@@ -599,71 +606,47 @@ void Circuit::solve_LU_core(Tran &tran){
    start_ptr_assign_xp_b();
 
    delete [] temp;
-   /*****************************************/
-   //clog<<"before build etree."<<endl;
-   // build up elimination tree according to L
-   // super node heads are sorted and stored in vector<Node_G*> tree
-   //build_etree(L, etree);
-   //clog<<"after build etree."<<endl;
-   
+   /*****************************************/ 
+//#endif
    // bnewp[i] = bp[i]
-   clog<<"start ptr assign. "<<endl;
    start_ptr_assign();
-   clog<<"after ptr assign. "<<endl;
 
    //stamp_current_tr(bnewp, tran, time);
    modify_rhs_tr(bnewp, xp, tran, iter);
-   clog<<"after modify rhs. "<<endl;
-   bold = new double [n];
-   flag_col = new bool[n];
-   for(int i=0;i<n;i++)
-	bold[i] = bnewp[i];
-   clog<<"after assign bold. "<<endl;
-   clock_t s, e;
-   s = clock();
-   
-   solve_eq(L, xp);
-   //solve_eq_pr(L, xp);
-   
-   //ptr_solve_FFS(xp);
-   
-   e = clock();
-   clog<<"time for solve_tr: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
+
+   t1 = omp_get_wtime(); 
+   solve_eq(xp); 
+   t2 = omp_get_wtime();
+   clog<<"time for solve_tr: "<<t2-t1<<endl;
 
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-   s = clock();
+   t1 = omp_get_wtime();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 2){
        // bnewp[i] = bp[i];
-	start_ptr_assign();
-	for(int i=0;i<n;i++)
-		flag_col[i] = false;
+       for(int i=0;i<n;i++)
+	bnewp[i] = bp[i];
+	//start_ptr_assign();
+
 
       // only stamps if net current changes
       // set bp into last state
       //stamp_current_tr(bnewp, tran, time);
       stamp_current_tr_1(bp, bnewp, tran, time);
+     // get the new bnewp
       modify_rhs_tr(bnewp, xp, tran, iter);
-
-	int count = 0;
-      for(int i=0;i<n;i++)
-	if(bnewp[i] == bold[i]){
-		flag_col[i] = true;
-		count ++;
-	}
-      cout<<count<<" out of "<<L->n<<" rhs are saved. "<<endl; 
-
-      solve_eq(L, xp);
-      //solve_eq_pr(L, xp);
-      //ptr_solve_FFS(xp);
+    
+	
+      solve_eq(xp);
+      //x = cholmod_solve(CHOLMOD_A, L, bnew, cm); 
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
       iter ++;
    }
-   e = clock();
-   clog<<"1000 iters cost: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
+   t2 = omp_get_wtime();
+   clog<<"1000 iters cost: "<<t2-t1<<endl;
 
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
@@ -2819,20 +2802,16 @@ void *Circuit::ptr_solve_FFS(double *X){
 }
 
 
-void Circuit::solve_eq(cholmod_factor *L, double *X){
-   double *Lx;
-   int *Li, *Lp, *Lnz;
+void Circuit::solve_eq(double *X){
    int p, q, r, lnz, pend;
-   Lp = static_cast<int *>(L->p);
-   Lx = static_cast<double*> (L->x);
-   Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
    int j, k, n = L->n ;
    // assign xp[i] = bnewp[i]
-   start_ptr_assign_1(); 
+   for(int i=0;i<n;i++)
+	X[i] = bnewp[i];
+   //start_ptr_assign_1(); 
 
-   clock_t t1, t2;
-   t1 = clock();
+   //clock_t t1, t2;
+   //t1 = clock();
    // FFS solve
    for (j = 0 ; j < n ; ){
       /* get the start, end, and length of column j */
@@ -2922,10 +2901,10 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
       }
       //#endif
    }
-   t2 = clock();
+   //t2 = clock();
    //clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
-   t1 = clock();
+   //t1 = clock();
    // FBS solve
    for(j = n-1; j >= 0; ){
 
@@ -3043,7 +3022,7 @@ void Circuit::solve_eq(cholmod_factor *L, double *X){
       }
       //#endif
    }
-   t2 = clock();
+   //t2 = clock();
    //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 }
 
@@ -3061,10 +3040,13 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    Lnz = static_cast<int *>(L->nz);
    int j, k, n = L->n ;
    // assign xp[i] = bnewp[i]
+   //for(int i=0;i<n;i++)
+	//X[i] = res[i]; 
    start_ptr_assign_1(); 
 
    clock_t t1, t2;
    t1 = clock();
+   int count = 0;
    // FFS solve
    for (j = 0 ; j < n ; ){
       /* get the start, end, and length of column j */
@@ -3072,58 +3054,59 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
       lnz = Lnz [j] ;
       pend = p + lnz ;
 
-      if (lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
+      //if (lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
       {
 
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-	      //if(flag_col[j] == false){
-		      double y = X [j] ;
-		      if(L->is_ll == true){
-			      X[j] /= Lx [p] ;
-		      }
+	      double y = X [j] ;
+	      if(L->is_ll == true){
+		      X[j] /= Lx [p] ;
+	      }
 
+	      if(X[j] != 0){
+		 	count ++;
 		      for (p++ ; p < pend ; p++)
 		      {
 			      X [Li [p]] -= Lx [p] * y ;
 		      }
 
-	      //}
+	      }
 	      j++ ;	/* advance to next column of L */
       }
-      //#if 0
+#if 0
       else if (lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
       {
 
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-	//if(flag_col[j] == false && flag_col[j+1] == false){
-         double y [2] ;
-         q = Lp [j+1] ;
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-         }
+	      /* -------------------------------------------------------------- */
+	      /* solve with a supernode of two columns of L */
+	      /* -------------------------------------------------------------- */
+	      //if(flag_col[j] == false && flag_col[j+1] == false){
+		      double y [2] ;
+		      q = Lp [j+1] ;
+		      if(L->is_ll == true){
+			      y [0] = X [j] / Lx [p] ;
+			      y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
+			      X [j  ] = y [0] ;
+			      X [j+1] = y [1] ;
+		      }
 
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            X [j+1] = y [1] ;
-         }
-         for (p += 2, q++ ; p < pend ; p++, q++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
-         }
-       //}
-  	// else only  solve 1 column
-       //else if(flag_col[j] == false){
-		
-	//}
-         j += 2 ;	    /* advance to next column of L */
+		      else{
+			      y [0] = X [j] ;
+			      y [1] = X [j+1] - Lx [p+1] * y [0] ;
+			      X [j+1] = y [1] ;
+		      }
+		      for (p += 2, q++ ; p < pend ; p++, q++)
+		      {
+			      X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
+		      }
+	      //}
+	      // else only  solve 1 column
+	      //else if(flag_col[j] == false){
+
+	      //}
+	      j += 2 ;	    /* advance to next column of L */
 
       }
       else
@@ -3158,10 +3141,11 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
          }
          j += 3 ;	    /* advance to next column of L */
       }
-      //#endif
+#endif
    }
    t2 = clock();
-   //clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   clog<<count<<" out of: "<<n<<" are computed in FFS. "<<endl;
+   clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
    t1 = clock();
    // FBS solve
@@ -3180,7 +3164,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-
          double y = X [j] ;
          double d = Lx [p] ;
          if(L->is_ll == false)
@@ -3193,6 +3176,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
             X [j] /=  d ;
          j--;
       }
+//#if 0
       else if (lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
       {
 
@@ -3279,7 +3263,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
          X [j  ] = y [0] ;
          j -= 3 ;	    /* advance to the next column of L */
       }
-      //#endif
+//#endif
    }
    t2 = clock();
    //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;

@@ -127,9 +127,9 @@ void Algebra::get_col_compressed(Matrix & A, size_t &count, UF_long *Ap, UF_long
 }
 
 // deliver the address of x
-void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b, 
+void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod_dense *b, 
   cholmod_common *cm){
-	cholmod_factor *L;
+	//cholmod_factor *L;
 	cm->final_super = false;
 	cm->final_asis = false;
 	double t1, t2;
@@ -139,16 +139,13 @@ void Algebra::solve_CK(Matrix & A, cholmod_dense *&x, cholmod_dense *b,
 	clog<<"time for decomp. "<<1.0*(t2-t1)<<endl;
 	//cholmod_print_factor(L, "L", cm);
 	//cholmod_print_common("CM", cm);
-	//clog<<"after CK_decomp. "<<endl;
 	// then solve
 	t1 = omp_get_wtime();
 	x = cholmod_solve(CHOLMOD_A, L, b, cm);
 	t2 = omp_get_wtime();
 	clog<<"time for solving: "<<1.0*(t2-t1)<<endl;
 	//cholmod_print_dense(x, "x", cm);
-	//clog<<"after print dense. "<<endl;
-	cholmod_free_factor(&L, cm);
-	//clog<<"after free factor. "<<endl;
+	//cholmod_free_factor(&L, cm);
 }
 
 // Given column compressed form of matrix A

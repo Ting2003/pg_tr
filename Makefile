@@ -33,8 +33,9 @@ UMFPACK_LIB=$(UMFPACK_LIB_DIR)/libumfpack.a \
             $(UMFPACK_LIB_DIR)/libccolamd.a \
             $(UMFPACK_LIB_DIR)/libcamd.a \
             $(UMFPACK_LIB_DIR)/libmetis.a \
-	    $(GOTO2)/libgoto2_nehalemp-r1.13.a
-#$(UMFPACK_LIB_DIR)/libgoto2.a
+	    $(GOTO2)/libgoto2_nehalemp-r1.13.a 
+	    #$(UMFPACK_LIB_DIR)/libgoto2.a 
+
 CHOLMOD_INC_DIR=$(CHOLMOD)/Include
 CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(PACKAGE)/AMD/Lib/libamd.a
