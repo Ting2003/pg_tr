@@ -198,6 +198,7 @@ private:
 
         double *temp;
 	void assign_task(int N_proc, int N);
+	void assign_task_tree(int N_proc, int N);
 
         void start_thread();
         static void* call_thread_task(void*arg);
@@ -215,9 +216,7 @@ private:
         static void *call_ptr_assign_rid(void *arg);
         void *ptr_assign_rid();
 
-	void start_ptr_solve();
-        static void *call_ptr_solve(void *arg);
-        void *ptr_solve();
+        void *ptr_solve_FFS(double *X);
 
 	void start_ptr_assign_bp();
         static void *call_ptr_assign_bp(void *arg);
@@ -239,7 +238,10 @@ private:
         pthread_t tid[NTHREADS];
         size_t start[NTHREADS];
         size_t end[NTHREADS];
+	size_t start_tree[NTHREADS];
+	size_t end_tree[NTHREADS];
         int my_id;
+	double **X_temp;
 
         int *id_map;
         cholmod_factor *L;
@@ -247,6 +249,8 @@ private:
         cholmod_dense *b, *x, *bnew;
         double *bp, *xp;
         double *bnewp;
+ 	double *bold;
+	bool *flag_col;
         void solve_eq(cholmod_factor *L, double *X);
         //void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
@@ -262,9 +266,6 @@ private:
 	// ************ elimination tree  ************
 	vector<Node_G*> etree;
 	vector<Node_G *> tree;
-	int *n_level;
-	int *base_level;
-	int level_tr;
 	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
 	int find_level(Node_G *nd);
 	void find_level_inv(Node_G *nd, vector<Node_G*> &tree);
