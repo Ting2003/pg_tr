@@ -132,18 +132,18 @@ void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod
 	//cholmod_factor *L;
 	cm->final_super = false;
 	cm->final_asis = false;
-	double t1, t2;
-	t1 = omp_get_wtime();
+	clock_t t1, t2;
+	t1 = clock_t();
 	CK_decomp(A, L, cm);
-	t2 = omp_get_wtime();
-	clog<<"time for decomp. "<<1.0*(t2-t1)<<endl;
+	t2 = clock_t();
+	clog<<"time for decomp. "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//cholmod_print_factor(L, "L", cm);
 	//cholmod_print_common("CM", cm);
 	// then solve
-	t1 = omp_get_wtime();
+	t1 = clock();
 	x = cholmod_solve(CHOLMOD_A, L, b, cm);
-	t2 = omp_get_wtime();
-	clog<<"time for solving: "<<1.0*(t2-t1)<<endl;
+	t2 = clock();
+	clog<<"time for solving: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//cholmod_print_dense(x, "x", cm);
 	//cholmod_free_factor(&L, cm);
 }

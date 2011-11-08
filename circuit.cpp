@@ -55,7 +55,6 @@ Circuit::Circuit(string _name):name(_name),
 	for(int i=0;i<MAX_LAYER;i++)
 		layer_dir[i]=NA;
 	id_map = NULL;
-	etree.clear();
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -70,9 +69,6 @@ Circuit::~Circuit(){
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
 	free(id_map);
-	tree.clear();
-	for(size_t i=0;i<etree.size();i++) 
-		delete etree[i];
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -185,7 +181,7 @@ void Circuit::print(){
 // 2. set node representatives
 // 3. find node in which block, update count
 // 4. get representative lists
-void Circuit::solve_init(Tran &tran){
+void Circuit::solve_init(){
         sort_nodes();
 	size_t size = nodelist.size()-1; // exclude ground node!!
 	Node *p=NULL;
@@ -397,7 +393,7 @@ bool Circuit::solve_IT(Tran &tran){
 	// did not find any `X' node
 	if( circuit_type == UNKNOWN )
 		circuit_type = C4;
-	solve_init(tran);
+	solve_init();
 	/*if( replist.size() <= 2*MAX_BLOCK_NODES ){
 		clog<<"Use direct LU instead."<<endl;
 		solve_LU_core();
@@ -560,7 +556,6 @@ void Circuit::solve_LU_core(Tran &tran){
    // print out dc solution
    //cout<<"dc solution. "<<endl;
    //cout<<nodelist<<endl;
-   //return;
 
    // A is already being cleared   
    if(nodelist.size()!=replist.size())
@@ -576,10 +571,10 @@ void Circuit::solve_LU_core(Tran &tran){
    stamp_by_set_tr(A, bp, tran);
    make_A_symmetric_tr(bp, xp, tran);
    
-   stamp_current_tr(bp, tran, time);
+   stamp_current_tr(bp, time);
    
-   double t1, t2;
-   t1 = omp_get_wtime();
+   clock_t t1, t2;
+   t1 = clock();
    Algebra::CK_decomp(A, L, cm);
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
@@ -588,9 +583,10 @@ void Circuit::solve_LU_core(Tran &tran){
 
    //cholmod_print_factor(L, "L", cm);
    
-   t2 = omp_get_wtime();
-   clog<<"decomp cost: "<<1.0*(t2-t1)<<endl;
+   t2 = clock();
+   clog<<"decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    A.clear();
+   return;
 //#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
@@ -612,20 +608,23 @@ void Circuit::solve_LU_core(Tran &tran){
    start_ptr_assign();
 
    //stamp_current_tr(bnewp, tran, time);
-   modify_rhs_tr(bnewp, xp, tran, iter);
+   modify_rhs_tr(bnewp, xp, tran);
 
-   t1 = omp_get_wtime(); 
-   solve_eq(xp); 
-   t2 = omp_get_wtime();
-   clog<<"time for solve_tr: "<<t2-t1<<endl;
+   t1 = clock(); 
+   solve_eq(xp);
+   //x = cholmod_solve(CHOLMOD_A, L, bnew, cm);
+   //xp = static_cast<double *>(x->x);
+ 
+   t2 = clock();
+   clog<<"time for solve_tr: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-   t1 = omp_get_wtime();
+   t1 = clock();
    // then start other iterations
-   while(time < tran.tot_t){// && iter < 2){
+   while(time < tran.tot_t && iter < 0){
        // bnewp[i] = bp[i];
-       for(int i=0;i<n;i++)
+       for(size_t i=0;i<n;i++)
 	bnewp[i] = bp[i];
 	//start_ptr_assign();
 
@@ -633,20 +632,21 @@ void Circuit::solve_LU_core(Tran &tran){
       // only stamps if net current changes
       // set bp into last state
       //stamp_current_tr(bnewp, tran, time);
-      stamp_current_tr_1(bp, bnewp, tran, time);
+      stamp_current_tr_1(bp, bnewp, time);
      // get the new bnewp
-      modify_rhs_tr(bnewp, xp, tran, iter);
+      modify_rhs_tr(bnewp, xp, tran);
     
 	
       solve_eq(xp);
       //x = cholmod_solve(CHOLMOD_A, L, bnew, cm); 
+      //xp = static_cast<double *>(x->x);
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
       iter ++;
    }
-   t2 = omp_get_wtime();
-   clog<<"1000 iters cost: "<<t2-t1<<endl;
+   t2 = clock();
+   clog<<"1000 iters cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
@@ -656,7 +656,7 @@ void Circuit::solve_LU_core(Tran &tran){
 
 // solve the node voltages using direct LU
 void Circuit::solve_LU(Tran &tran){
-	solve_init(tran);
+	solve_init();
 	solve_LU_core(tran);
 }
 
@@ -790,7 +790,7 @@ void Circuit::stamp_by_set(Matrix & A, double * b){
 }
 
 // stamp transient current values into rhs
-void Circuit::stamp_current_tr(double *b, Tran &tran, double &time){
+void Circuit::stamp_current_tr(double *b, double &time){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type == CURRENT)
@@ -800,7 +800,7 @@ void Circuit::stamp_current_tr(double *b, Tran &tran, double &time){
 }
 
 // stamp transient current values into rhs
-void Circuit::stamp_current_tr_1(double *bp, double *b, Tran &tran, double &time){
+void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type == CURRENT)
@@ -850,16 +850,16 @@ void Circuit::stamp_by_set_tr(Matrix & A, double *b, Tran &tran){
 }
 
 // update rhs by transient nets
-void Circuit::modify_rhs_tr(double * b, double *x, Tran &tran, int &iter){
+void Circuit::modify_rhs_tr(double * b, double *x, Tran &tran){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type ==CAPACITANCE){	
 			for(size_t i=0;i<ns.size();i++)
-				modify_rhs_c_tr(ns[i], b, x, tran, iter);
+				modify_rhs_c_tr(ns[i], b, x, tran);
 		}
 		else if(type == INDUCTANCE){
 			for(size_t i=0;i<ns.size();i++){
-				modify_rhs_l_tr(ns[i], b, x, tran, iter);	
+				modify_rhs_l_tr(ns[i], b, x, tran);	
 			}
 		}
 	}
@@ -1067,7 +1067,7 @@ void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran){
 
 // add Ieq into rhs
 // Ieq = i(t) + 2*C / delta_t *v(t)
-void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran, int &iter){
+void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	double i_t = 0;
 	double temp = 0;
 	double Ieq = 0;
@@ -1143,7 +1143,7 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran, int
 }
 // add Ieq into rhs
 // Ieq = i(t) + delta_t / (2*L) *v(t)
-void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran, int &iter){
+void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran){
 	//clog<<"l net: "<<*net<<endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
@@ -2665,146 +2665,13 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
    insert_list.clear();
 }
 */
-bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2){
-  return (nd_1->value < nd_2->value); 
-}
-/*void Circuit::update_node_set_bx(){
-   int id = 0;
-   //clog<<"len_node_set_b. "<<pg.node_set_b.size();
-   for(int i=0;i<pg.node_set_b.size();i++){
-      id = pg.node_set_b[i];
-      pg.node_set_b[i] = id_map[id];
-      //clog<<"b_old, b_new: "<<id<<" "<<id_map[id]<<endl;
-   }
-   //clog<<endl;
-   //clog<<"len_node_set_x. "<<pg.node_set_x.size()<<endl;
-   for(int i=0;i<pg.node_set_x.size();i++){
-      id = pg.node_set_x[i];
-      pg.node_set_x[i] = id_map[id];
-      //clog<<"x_old, x_new: "<<id<<" "<<id_map[id]<<endl;
-   }
-}*/
 
 
-// each thread's solve function
-void *Circuit::ptr_solve_FFS(double *X){
-   clock_t t1, t2;
-   double *Lx;
-   int *Li, *Lp, *Lnz;
-   int i=0, j=0, p, lnz, pend;
-   double y;
-
-   int n = L->n;
-   bool *done;
-   done = new bool [L->n];
-   // assign xp[i] = bnewp[i];
-   //start_ptr_assign_1();
-   for(i=0;i<n;i++){
-	done[i] = false;
-	X[i] = bnewp[i];
-   }
-
-   Lp = static_cast<int *>(L->p);  
-   Lx = static_cast<double*> (L->x);
-   Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
-
-  t1 = clock();
-  for(i=0; i<tree.size();i++){
-  	j = tree[i]->value;
-	// copy diagonal element
-	
-	//****** solve_col_FFS_pr function
-	p = Lp [j] ;
-	lnz = Lnz[j] ;
-	pend = p + lnz ;
-
-	y = X[j] ;
-	if(L->is_ll == true){
-		X[j] /= Lx [p] ;
-	}
-
-	//cout<<"j, X: "<<j<<" "<<X[j]<<endl;
-	for ( ++p ; p < pend ; p++){	
-		X[Li [p]] -= Lx [p] * y ;
-	}
-	done[j] = true;
-  }
-  t2 = clock();
-  //clog<<"solve: "<<tree.size()<<" cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
-  t1 = clock();
-  for(j=0;j<n;j++){
-  	if(done[j] == true) continue;
-	p = Lp [j] ;
-	lnz = Lnz[j] ;
-	pend = p + lnz ;
-
-	y = X[j] ;
-	if(L->is_ll == true){
-		X[j] /= Lx [p] ;
-	}
-
-	for ( ++p ; p < pend ; p++){	
-		X[Li [p]] -= Lx [p] * y ;
-	}
-	//done[j] = true;
-  }
-  //for(j=0;j<n;j++)
-	//cout<<"FFS sol: "<<j<<" "<<X[j]<<endl;
-  t2 = clock();
-  //clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
-
-  t1 = clock();
-  // FBS solve
-  for(j=n-1;j>=0; j--){
-	  if(done[j] == true) continue;
-	  /* get the start, end, and length of column j */
-	  p = Lp [j] ;
-	  lnz = Lnz [j] ;
-	  pend = p + lnz ;
-	  double y = X [j] ;
-	  double d = Lx [p] ;
-	  if(L->is_ll == false)
-		  X[j] /= d ;
-	  for (++p ; p < pend ; p++)
-	  {
-		  X[j] -= Lx [p] * X [Li [p]] ;
-	  }
-	  if(L->is_ll == true)
-		  X [j] /=  d ;
-  }
-
-  for(i=0; i<tree.size();i++){
-  	j = tree[i]->value;
-	// copy diagonal element
-	
-	//****** solve_col_FFS_pr function
-	p = Lp [j] ;
-	lnz = Lnz[j] ;
-	pend = p + lnz ;
-
-	y = X[j] ;
-	if(L->is_ll == true){
-		X[j] /= Lx [p] ;
-	}
-
-	for ( ++p ; p < pend ; p++){	
-		X[Li [p]] -= Lx [p] * y ;
-	}
-	done[j] = true;
-  }
-  t2 = clock();
-  //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-  delete[] done;
-  return 0;
-}
 
 
 void Circuit::solve_eq(double *X){
    int p, q, r, lnz, pend;
-   int j, k, n = L->n ;
+   int j, n = L->n ;
    // assign xp[i] = bnewp[i]
    for(int i=0;i<n;i++)
 	X[i] = bnewp[i];
@@ -2922,7 +2789,6 @@ void Circuit::solve_eq(double *X){
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
 
-         double y = X [j] ;
          double d = Lx [p] ;
          if(L->is_ll == false)
             X[j] /= d ;
@@ -3038,7 +2904,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    Lx = static_cast<double*> (L->x);
    Li = static_cast<int*>(L->i) ;
    Lnz = static_cast<int *>(L->nz);
-   int j, k, n = L->n ;
+   int j, n = L->n ;
    // assign xp[i] = bnewp[i]
    //for(int i=0;i<n;i++)
 	//X[i] = res[i]; 
@@ -3164,7 +3030,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-         double y = X [j] ;
          double d = Lx [p] ;
          if(L->is_ll == false)
             X[j] /= d ;
@@ -3270,8 +3135,7 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
  }
 
 // solve rest columns with FFS and FBS
-void Circuit::solve_single_col(cholmod_factor*L, double *X, double *Lx,
-	int *Li, int *Lp, int *Lnz){
+void Circuit::solve_single_col(double *X){
 #if 0    
 int i, j, n = L->n ;   
     //********* for the rest of nodes, solve in sequential
@@ -3353,7 +3217,6 @@ void Circuit::solve_col_FBS(cholmod_factor *L, double *X, int &j,
    lnz = Lnz [j] ;
    pend = p + lnz ;
 
-   double y = X [j] ;
    double d = Lx [p] ;
    if(L->is_ll == false)
 	   X[j] /= d ;
@@ -3361,115 +3224,6 @@ void Circuit::solve_col_FBS(cholmod_factor *L, double *X, int &j,
 	   X[j] -= Lx [p] * X [Li [p]] ;
    if(L->is_ll == true)
 	   X [j] /=  d ;
-}
-
-void Circuit::build_etree(cholmod_factor *L, vector<Node_G*> &etree){
-   double *Lx;
-   int *Li, *Lp, *Lnz;
-   int p, q, r, lnz, pend;
-   Lp = static_cast<int *>(L->p);
-   Lx = static_cast<double*> (L->x);
-   Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
-   int j, k, n = L->n ;
-
-   etree.clear();
-   // first produce all nodes
-   Node_G *nd;
-   for(j=0;j<n;j++){
-	nd = new Node_G(j);
-	etree.push_back(nd);
-  }
-
-  for(j=0;j<n;j++){
-  	p = Lp[j];
-	lnz = Lnz[j];
-	pend = p + lnz;
-	nd = etree[Li[p]];
-
-	if(++p < pend){
-		nd->children = etree[Li[p]];
-		etree[Li[p]]->parent.push_back(nd);
-	} 
-  }
-  // assign super nodes level
-  build_tree(etree); 
-}
-
-// locate root node, and find max_depth
-void Circuit::build_tree(vector<Node_G*> &etree){
-	Node_G *nd;
-	int j;
-	int n = replist.size();
-
-	// first positive scan
-	for(j=0;j<n;j++){
-		nd = etree[j];
-		if(nd->parent.size()!=0) continue;
-		tree.push_back(nd);	
-	}	
-	//cout<<"leaf node size / n: "<<tree.size()<<" "<<n<<endl;	
-}
-
-// update level info between 2 nodes: nd and its parent
-int Circuit::find_level(Node_G *nd){
-	if(nd->children == NULL) {
-		//tree.push_back(nd);
-		return 1;
-	}
-	int level=0;
-	//cout<<"parent_size: "<<nd->children->parent.size()<<endl;
-	if(nd->children->parent.size()>1){
-		level = nd->level +1;
-		//tree.push_back(nd);
-	}
-	else if(nd->children->parent.size()==1){
-		level = nd->level;
-	}
-	int diff = level - nd->children->level;
-	//cout<<"nd, nd_l: "<<*nd<<endl;;
-	//cout<<"parent, parent_l: "<<*nd->children; 
-	// update parent level
-	if(diff >0)
-		nd->children->level += diff;	
-	return 0;
-}
-
-// update level info between 2 nodes: nd and its parent
-void Circuit::find_level_inv(Node_G *p, vector<Node_G*> &tree){
-	if(p->parent.size() == 0){
-		tree.push_back(p);
-		return;
-	}
-	//int level=0;
-
-	if(p->parent.size()>1){
-		//level = p->level -1;
-		tree.push_back(p);
-	}
-#if 0
-	else if(p->parent.size()==1){
-		level = p->level;
-	}
-#endif
-	//clog<<"level: "<<level<<endl;
-	//clog<<"parent size: "<<p->parent.size()<<endl;
-#if 0	
-	for(int j=0;j<p->parent.size();j++){
-		p->parent[j]->level = level;
-		//clog<<"parent node: "<<*p->parent[j];
-	}
-#endif
-	for(int j=0;j<p->parent.size();j++){
-		Node_G *q;
-		q = p->parent[j];
-		//p = p->parent[j];
-		find_level_inv(q, tree);
-	}
-}
-
-bool compare_s_level(const Node_G *nd_1, const Node_G *nd_2){
-  return (nd_1->level < nd_2->level); 
 }
 
 #if 0

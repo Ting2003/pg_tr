@@ -1,6 +1,8 @@
 CC=g++#mpicxx
 #CPLUSPLUS=g++
 SRC= util.cpp point.cpp node.cpp circuit.cpp net.cpp parser.cpp vec.cpp \
+    main.cpp triplet.cpp algebra.cpp block.cpp transient.cpp 
+#SRC= util.cpp point.cpp node.cpp circuit.cpp net.cpp parser.cpp vec.cpp \
     main.cpp triplet.cpp algebra.cpp block.cpp transient.cpp etree.cpp #sp_node.cpp \
     sp_graph_table.cpp
 
@@ -10,7 +12,7 @@ OBJ=$(SRC:.cpp=.o)
 BIN=pg
 RELEASE=IPGS
 CPPFLAGS=
-CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native -lpthread -fopenmp
+CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native -lpthread
 #CFLAGS=-Wall -Wextra -pipe -g -msse4.2 -mssse3 -mfpmath=sse -march=native -fopenmp
 #CFLAGS=-Wall -g #-Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=core2
 #LDFLAGS=-s -Wl,-O1,-hash-style=gnu
@@ -33,7 +35,7 @@ UMFPACK_LIB=$(UMFPACK_LIB_DIR)/libumfpack.a \
             $(UMFPACK_LIB_DIR)/libccolamd.a \
             $(UMFPACK_LIB_DIR)/libcamd.a \
             $(UMFPACK_LIB_DIR)/libmetis.a \
-	    $(GOTO2)/libgoto2_nehalemp-r1.13.a 
+	    $(GOTO2)/libgoto2_nehalemp-r1.13.a
 	    #$(UMFPACK_LIB_DIR)/libgoto2.a 
 
 CHOLMOD_INC_DIR=$(CHOLMOD)/Include

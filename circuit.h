@@ -28,7 +28,6 @@
 #include "block.h"
 #include "transient.h"
 #include "cholmod.h"
-#include "etree.h"
 #include <algorithm>
 
 using namespace std;
@@ -107,7 +106,7 @@ private:
 
 	
 	// initialize things before solve_iteration
-	void solve_init(Tran &tran);
+	void solve_init();
 	void count_merge_nodes();
 
 	// updates nodes value in each iteration
@@ -131,16 +130,16 @@ private:
 	void stamp_resistor_tr(Matrix & A, Net * net);
 	void current_tr(Net *net, double &time);
 	
-	void stamp_current_tr_1(double *bp, double *b, Tran &tran, double &time);
+	void stamp_current_tr_1(double *bp, double *b, double &time);
 	void stamp_current_tr_net_1(double *bp, double *b, Net *net, double &time);
 
-	void stamp_current_tr(double *b, Tran &tran, double &time);
+	void stamp_current_tr(double *b, double &time);
 	void stamp_current_tr_net(double *b, Net * net, double &time);
 	void stamp_capacitance_tr(Matrix & A, Net * net, Tran &tran);
 	void stamp_inductance_tr(Matrix & A, Net * net, Tran &tran);
-	void modify_rhs_tr(double *b, double *xp, Tran &tran, int &iter);
-	void modify_rhs_c_tr(Net *net, double *rhs, double *xp, Tran &tran, int &iter);
-	void modify_rhs_l_tr(Net *net, double *rhs, double *xp, Tran &tran, int &iter);
+	void modify_rhs_tr(double *b, double *xp, Tran &tran);
+	void modify_rhs_c_tr(Net *net, double *rhs, double *xp, Tran &tran);
+	void modify_rhs_l_tr(Net *net, double *rhs, double *xp, Tran &tran);
 	void release_tr_nodes(Tran &tran);
 	void link_tr_nodes(Tran &tran);
 	void save_tr_nodes(Tran &tran, double *x);
@@ -255,22 +254,14 @@ private:
         //void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
         
-	void solve_single_col(cholmod_factor*L, double *X, double*Lx,
-		int *Li, int *Lp, int *Lnz);
+	void solve_single_col(double *X);
 
 	void solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz);
 	
 	void solve_col_FBS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz);
-	// ************ elimination tree  ************
-	vector<Node_G*> etree;
-	vector<Node_G *> tree;
-	void build_etree(cholmod_factor *L, vector<Node_G*> &etree);
-	int find_level(Node_G *nd);
-	void find_level_inv(Node_G *nd, vector<Node_G*> &tree);
-	void build_tree(vector<Node_G*> &etree);
-#if 0	
+	#if 0	
 	// ****************functions and members for sp_v methods ***
         Path_Graph pg;
         int *path_b, *path_x;
@@ -364,10 +355,7 @@ inline bool Circuit::has_net(string name) const{
 inline Net * Circuit::get_net(string name){return map_net[name];}
 */
 
-bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2);
-bool compare_s_level(const Node_G *nd_1, const Node_G *nd_2);
 
-bool compare_node_ptr(const Node *a, const Node *b);
 ostream & operator << (ostream & os, const NodePtrVector & nodelist);
 ostream & operator << (ostream & os, const NetPtrVector & nets);
 //ostream & operator << (ostream & os, const vector<Block > & block_info);
