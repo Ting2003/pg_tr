@@ -103,13 +103,7 @@ void Parser::insert_net_node(char * line){
 			if( nd_ptr[i]->isS()== Y)    // determine circuit type
 				ckt->set_type(WB);
 
-			// find the coordinate max and min
-			size_t x = nd[i].pt.x;
-			size_t y = nd[i].pt.y;
-			if( x < ckt->x_min ) ckt->x_min = x;
-			if( y < ckt->y_min ) ckt->y_min = y;
-			if( x > ckt->x_max ) ckt->x_max = x;
-			if( y > ckt->y_max ) ckt->y_max = y;
+			// find the coordinate max and min	
 		}
 	}
 

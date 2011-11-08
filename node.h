@@ -34,13 +34,8 @@ public:
 	double get_value() const;
 	void set_value(double v);
 
-	vector<size_t> & get_block_id() const;
-
-	bool inside_block(size_t block_id) const;
-
 	friend ostream & operator << (ostream & os, const Node & node);
 	friend class Circuit;
-	friend class Block;
 	friend class Parser;
 
 	////////////////////////////////////////////////////////////
@@ -61,8 +56,8 @@ private:
 	// flag = 3 --> Z
 	int flag;		// mark if the node is an XYZ node
 	Node * rep;		// representative, if somewhere is short-circuit
-	vector<size_t> blocklist;	// belongs to which block
-	vector<size_t> id_in_block;	// local index inside block	
+	//vector<size_t> blocklist;	// belongs to which block
+	//vector<size_t> id_in_block;	// local index inside block	
 };      	
 
 inline int Node::isS() const{return flag;}
@@ -78,14 +73,5 @@ inline double Node::get_value() const{return value;}
 inline void Node::set_value(double v){value = v;}
 
 inline void Node::set_nbr(DIRECTION dir, Net * net){ nbr[dir] = net; }
-
-inline vector<size_t> & Node::get_block_id() const{return rep->blocklist;}
-
-inline bool Node::inside_block(size_t block_id) const{
-	vector<size_t>::const_iterator it;
-	it = find(blocklist.begin(), blocklist.end(), block_id);
-	if( it == blocklist.end() ) return false;
-	return true;
-}
 
 #endif

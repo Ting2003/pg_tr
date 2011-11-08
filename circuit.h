@@ -24,8 +24,6 @@
 #include "node.h"
 #include "net.h"
 #include "vec.h"
-#include "triplet.h"
-#include "block.h"
 #include "transient.h"
 #include "cholmod.h"
 #include <algorithm>
@@ -54,7 +52,6 @@ public:
 	Circuit(string name="");
 	~Circuit();
 	void check_sys() const;
-	friend class Block;
 	// can be written as inline to speed up
 	Node * get_node(string name);
 	Net * get_net(string name);
@@ -76,13 +73,13 @@ public:
         
         void make_A_symmetric(double *bp);
 	void make_A_symmetric_tr(double *b, double *x, Tran &tran);
-	void make_A_symmetric_block();
-      void make_A_symmetric_block_tr(Tran &tran);
+	//void make_A_symmetric_block();
+      //void make_A_symmetric_block_tr(Tran &tran);
 
       // solve for node voltage
 	void solve(Tran &tran);
 	
-	void set_blocklist(Node * nd);
+	//void set_blocklist(Node * nd);
 
 	static void set_parameters(double, double, double, size_t, int);
 	static void get_parameters(double&, double&, double&, size_t&, int&);
@@ -97,25 +94,10 @@ private:
 	// member functions
 	void solve_LU(Tran &tran);
 	void solve_LU_core(Tran &tran);
-
-	bool solve_IT(Tran &tran);
-	void solve_block_LU();
-
-	bool solve_pcg();
-	//bool solve_block_pcg();
-
 	
 	// initialize things before solve_iteration
 	void solve_init();
 	void count_merge_nodes();
-
-	// updates nodes value in each iteration
-	double solve_iteration();
-	bool solve_IT_dc(Matrix *A);
-	bool solve_IT_tr(Matrix *A, Tran &tran);
-
-	void block_init();
-	void update_block_geometry();
 
 	// methods of stamping the matrix
 	void stamp_by_set(Matrix & A, double * b);
@@ -145,51 +127,10 @@ private:
 	void save_tr_nodes(Tran &tran, double *x);
 	void print_tr_nodes(Tran &tran);
 
-	void stamp_block_matrix(Matrix *A);
-	void stamp_block_matrix_tr(Matrix *A, Tran &tran);
-
-	void stamp_block_resistor(Net *net, Matrix * A);
-	void stamp_block_current(Net * net);
-	void stamp_block_VDD(Net * net, Matrix * A);
-	void stamp_block_VDD_tr(Net * net);
-	void stamp_block_inductance_dc(Net * net, Matrix * A);
-	void update_block_rhs(Block & block, int dir);
-
-	// transient stamp
-	void stamp_block_resistor_tr(Net *net, Matrix * A);
-	void stamp_block_current_tr(double &time);
-	void stamp_block_current_tr_net(Net * net, double &time);
-	void modify_block_rhs_tr(Tran &tran);
-
-	void modify_block_rhs_c_tr(Net *net, Tran &tran);
-	void modify_block_rhs_l_tr(Net *net, Tran &tran);
-
-	void stamp_block_capacitance_dc(Net * net, Matrix * A);
-	void stamp_block_resistor_cl_tr(Matrix *A, Net * net, 
-			double &Geq);
-	double solve_iteration_tr(Tran &tran, double &time);
-	double solve_iteration_tr_step();
-	//  ******* method for PCG method  ********
-	// solve circuit with preconditioned pcg method
 	void copy_node_voltages(double *x, size_t &size, bool from=true);
-	void copy_node_voltages_block(bool from=true);
 
 	// after solving, copy node voltage from replist to nodes
 	void get_voltages_from_LU_sol(double *x);
-	void get_voltages_from_block_LU_sol();
-
-        void set_len_per_block();
-	void find_block_size ();
-	void block_boundary_insert_net(Net * net);
-	void find_block_base();
-
-	void partition_circuit();
-	double modify_voltage(Block & block);
-	double modify_voltage(Block & block, double *x_old);
-
-	void node_voltage_init();
-	void solve_one_block(size_t block_id);
-
 	void select_omega();
 
 	void set_type(CIRCUIT_TYPE type){circuit_type = type;};
@@ -298,8 +239,8 @@ private:
 	string name;
 
 	// blocks
-	BlockInfo block_info;
-	size_t x_min, y_min, x_max, y_max;
+	//BlockInfo block_info;
+	//size_t x_min, y_min, x_max, y_max;
 
 	// control variables
 	static double EPSILON;
@@ -311,7 +252,7 @@ private:
 	CIRCUIT_TYPE circuit_type;
 
 	double VDD;
-	size_t num_blocks;
+	//size_t num_blocks;
 };
 
 inline size_t Circuit::get_total_num_layer(){return layer_dir.size();}
