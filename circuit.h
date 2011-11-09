@@ -176,6 +176,8 @@ private:
         int my_id;
 
         int *id_map;
+	int *s_col_FFS;
+	int *s_col_FBS;
         cholmod_factor *L;
 	double *Lx;
 	int *Li, *Lp, *Lnz;
@@ -184,6 +186,7 @@ private:
         double *bp, *xp;
         double *bnewp;
         void solve_eq(double *X);
+	void solve_eq_0(double *X);
         //void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
         

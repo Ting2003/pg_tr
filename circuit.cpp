@@ -44,6 +44,8 @@ Circuit::Circuit(string _name):name(_name),
 	for(int i=0;i<MAX_LAYER;i++)
 		layer_dir[i]=NA;
 	id_map = NULL;
+	s_col_FFS = NULL;
+	s_col_FBS = NULL;
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -57,7 +59,9 @@ Circuit::~Circuit(){
 		NetPtrVector & ns = net_set[type];
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
-	free(id_map);
+	delete [] id_map;
+	delete [] s_col_FFS;
+	delete [] s_col_FBS;
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -302,9 +306,11 @@ void Circuit::solve_LU_core(Tran &tran){
    //stamp_current_tr(bnewp, tran, time);
    modify_rhs_tr(bnewp, xp, tran);
 
+   s_col_FFS = new int [n];
+   s_col_FBS = new int [n];
    //clock_t t1, t2;
    //t1 = clock(); 
-   solve_eq(xp);
+   solve_eq_0(xp);
    //t2 = clock();
    //clog<<"solve_eq: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    // bnewp[i] = bp[i]
@@ -348,7 +354,6 @@ void Circuit::solve_LU_core(Tran &tran){
    }
    //t2 = clock();
    //clog<<"1000 iters cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
    cholmod_free_dense(&b, cm);
@@ -1463,10 +1468,7 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
 }
 */
 
-
-
-
-void Circuit::solve_eq(double *X){
+void Circuit::solve_eq_0(double *X){
    int p, q, r, lnz, pend;
    int j, n = L->n ;
    // assign xp[i] = bnewp[i]
@@ -1489,7 +1491,7 @@ void Circuit::solve_eq(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-
+	 s_col_FFS[j] = 1;
          double y = X [j] ;
          if(L->is_ll == true){
             X[j] /= Lx [p] ;
@@ -1504,6 +1506,231 @@ void Circuit::solve_eq(double *X){
       }
       //#if 0
       else if (lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a supernode of two columns of L */
+         /* -------------------------------------------------------------- */
+	 s_col_FFS[j] = 2;
+         double y [2] ;
+         q = Lp [j+1] ;
+         if(L->is_ll == true){
+            y [0] = X [j] / Lx [p] ;
+            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
+            X [j  ] = y [0] ;
+            X [j+1] = y [1] ;
+         }
+
+         else{
+            y [0] = X [j] ;
+            y [1] = X [j+1] - Lx [p+1] * y [0] ;
+            X [j+1] = y [1] ;
+         }
+         for (p += 2, q++ ; p < pend ; p++, q++)
+         {
+            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
+         }
+         j += 2 ;	    /* advance to next column of L */
+
+      }
+      else
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a supernode of three columns of L */
+         /* -------------------------------------------------------------- */
+	 s_col_FFS[j] = 3;
+         double y [3] ;
+         q = Lp [j+1] ;
+         r = Lp [j+2] ;
+         if(L->is_ll == true){
+            y [0] = X [j] / Lx [p] ;
+            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
+            y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
+            X [j  ] = y [0] ;
+            X [j+1] = y [1] ;
+            X [j+2] = y [2] ;
+         }
+
+         else{
+            y [0] = X [j] ;
+            y [1] = X [j+1] - Lx [p+1] * y [0] ;
+            y [2] = X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1] ;
+            X [j+1] = y [1] ;
+            X [j+2] = y [2] ;
+         }
+         for (p += 3, q += 2, r++ ; p < pend ; p++, q++, r++)
+         {
+            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] + Lx [r] * y [2] ;
+         }
+         j += 3 ;	    /* advance to next column of L */
+      }
+      //#endif
+   }
+   //t2 = clock();
+   //clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+
+   //t1 = clock();
+   // FBS solve
+   for(j = n-1; j >= 0; ){
+
+      /* get the start, end, and length of column j */
+      p = Lp [j] ;
+      lnz = Lnz [j] ;
+      pend = p + lnz ;
+
+      /* find a chain of supernodes (up to j, j-1, and j-2) */
+
+      if (j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a single column of L */
+         /* -------------------------------------------------------------- */
+	 s_col_FBS[j] = 1;
+         double d = Lx [p] ;
+         if(L->is_ll == false)
+            X[j] /= d ;
+         for (p++ ; p < pend ; p++)
+         {
+            X[j] -= Lx [p] * X [Li [p]] ;
+         }
+         if(L->is_ll == true)
+            X [j] /=  d ;
+         j--;
+      }
+      else if (lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a supernode of two columns of L */
+         /* -------------------------------------------------------------- */
+	 s_col_FBS[j] =2;
+         double y [2], t ;
+         q = Lp [j-1] ;
+         double d [2] ;
+         d [0] = Lx [p] ;
+         d [1] = Lx [q] ;
+         t = Lx [q+1] ;
+         if(L->is_ll == false){
+            y [0] = X [j  ] / d [0] ;
+            y [1] = X [j-1] / d [1] ;
+         }
+         else{
+            y [0] = X [j  ] ;
+            y [1] = X [j-1] ;
+         }
+         for (p++, q += 2 ; p < pend ; p++, q++)
+         {
+            int i = Li [p] ;
+            y [0] -= Lx [p] * X [i] ;
+            y [1] -= Lx [q] * X [i] ;
+         }
+         if(L->is_ll == true){
+            y [0] /= d [0] ;
+            y [1] = (y [1] - t * y [0]) / d [1] ;
+         }
+         else
+            y [1] -= t * y [0] ;
+         X [j  ] = y [0] ;
+         X [j-1] = y [1] ;
+         j -= 2 ;	    /* advance to the next column of L */
+
+      }
+      else
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a supernode of three columns of L */
+         /* -------------------------------------------------------------- */
+	 s_col_FBS[j] =3;
+         double y [3], t [3] ;
+         q = Lp [j-1] ;
+         r = Lp [j-2] ;
+         double d [3] ;
+         d [0] = Lx [p] ;
+         d [1] = Lx [q] ;
+         d [2] = Lx [r] ;
+         t [0] = Lx [q+1] ;
+         t [1] = Lx [r+1] ;
+         t [2] = Lx [r+2] ;
+         if(L->is_ll == false){
+            y [0] = X [j]   / d [0] ;
+            y [1] = X [j-1] / d [1] ;
+            y [2] = X [j-2] / d [2] ;
+         }
+         else{
+            y [0] = X [j] ;
+            y [1] = X [j-1] ;
+            y [2] = X [j-2] ;
+         }
+         for (p++, q += 2, r += 3 ; p < pend ; p++, q++, r++)
+         {
+            int i = Li [p] ;
+            y [0] -= Lx [p] * X [i] ;
+            y [1] -= Lx [q] * X [i] ;
+            y [2] -= Lx [r] * X [i] ;
+         }
+         if(L->is_ll == true){
+            y [0] /= d [0] ;
+            y [1] = (y [1] - t [0] * y [0]) / d [1] ;
+            y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
+         }
+         else{
+            y [1] -= t [0] * y [0] ;
+            y [2] -= t [2] * y [0] + t [1] * y [1] ;
+         }
+         X [j-2] = y [2] ;
+         X [j-1] = y [1] ;
+         X [j  ] = y [0] ;
+         j -= 3 ;	    /* advance to the next column of L */
+      }
+      //#endif
+   }
+   //t2 = clock();
+   //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+}
+
+// use recorded column_flag to do super node computation
+// don't need to judge every time
+void Circuit::solve_eq(double *X){
+   int p, q, r, lnz, pend;
+   int j, n = L->n ;
+   // assign xp[i] = bnewp[i]
+   for(int i=0;i<n;i++)
+	X[i] = bnewp[i];
+   //start_ptr_assign_1(); 
+
+   //clock_t t1, t2;
+   //t1 = clock();
+   // FFS solve
+   for (j = 0 ; j < n ; ){
+      /* get the start, end, and length of column j */
+      p = Lp [j] ;
+      lnz = Lnz [j] ;
+      pend = p + lnz ;
+
+      if (s_col_FFS[j]==1)//lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
+      {
+
+         /* -------------------------------------------------------------- */
+         /* solve with a single column of L */
+         /* -------------------------------------------------------------- */
+
+         double y = X [j] ;
+         if(L->is_ll == true){
+            X[j] /= Lx [p] ;
+         }
+
+         for (p++ ; p < pend ; p++)
+         {
+            X [Li [p]] -= Lx [p] * y ;
+         }
+         j++ ;	/* advance to next column of L */
+
+      }
+      //#if 0
+      else if (s_col_FFS[j]==2)//lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
       {
 
          /* -------------------------------------------------------------- */
@@ -1579,7 +1806,7 @@ void Circuit::solve_eq(double *X){
 
       /* find a chain of supernodes (up to j, j-1, and j-2) */
 
-      if (j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
+      if (s_col_FBS[j]==1)//j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
       {
 
          /* -------------------------------------------------------------- */
@@ -1597,7 +1824,7 @@ void Circuit::solve_eq(double *X){
             X [j] /=  d ;
          j--;
       }
-      else if (lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
+      else if (s_col_FBS[j]==2)//lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
       {
 
          /* -------------------------------------------------------------- */
