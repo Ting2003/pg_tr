@@ -33,7 +33,6 @@ const int OUTPUT_WIDTH_STRING = 10;
 // overlap_ratio should < 0.45, or will be divergence
 //const size_t X_BLOCKS = 2; // # of blocks along x axis
 //const size_t Y_BLOCKS = 1; // # of blocks along y axis
-const int NN = 1e6; // threshhold value for using openmp
 const int NTHREADS=16;
 typedef pair<size_t,size_t> SizeTPair;
 class Triplet;

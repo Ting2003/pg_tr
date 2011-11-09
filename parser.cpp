@@ -162,9 +162,7 @@ void Parser::insert_net_node(char * line){
 	}
 	// trick: when the value of a resistor via is below a threshold,
 	// treat it as a 0-voltage via
-	if( Circuit::MODE == (int)IT ) {
-		try_change_via(net);
-	}
+	try_change_via(net);
 
 	// insert this net into circuit
 	ckt->add_net(net);

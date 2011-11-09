@@ -22,21 +22,11 @@
 #include <utility>
 #include <cassert>
 #include <vector>
-#include "umfpack.h"
 #include "circuit.h"
 #include "util.h"
 #include "algebra.h"
 #include "node.h"
 using namespace std;
-
-double Circuit::EPSILON = 1e-5;
-double Circuit::OMEGA = 1.2;
-double Circuit::OVERLAP_RATIO = 0.2;//0.2;
-size_t Circuit::MAX_BLOCK_NODES = 4000;//100000;
-int    Circuit::MODE = 0;
-const int MAX_ITERATION = 1000;
-const int SAMPLE_INTERVAL = 5;
-const size_t SAMPLE_NUM_NODE = 10;
 
 //////////////////////////////////////////////////////////////////////////
 // Constructor and utility functions goes here
@@ -227,12 +217,11 @@ void Circuit::count_merge_nodes(){
 				count++;
 		}
 	}
-	clog<<"number of nodes can be merged is: "<<count<<endl;
+	//clog<<"number of nodes can be merged is: "<<count<<endl;
 }
 
 void Circuit::solve(Tran &tran){
 	solve_LU(tran);
-	clog<<"finish solve. "<<endl;
 }
 
 
@@ -287,7 +276,6 @@ void Circuit::solve_LU_core(Tran &tran){
    t2 = clock();
    clog<<"decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    A.clear();
-   return;
 //#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
    // build id_map immediately after transient factorization
@@ -323,11 +311,11 @@ void Circuit::solve_LU_core(Tran &tran){
    time += tran.step_t;
    t1 = clock();
    // then start other iterations
-   while(time < tran.tot_t && iter < 0){
+   while(time < tran.tot_t){// && iter < 0){
        // bnewp[i] = bp[i];
-       for(size_t i=0;i<n;i++)
-	bnewp[i] = bp[i];
-	//start_ptr_assign();
+       //for(size_t i=0;i<n;i++)
+	//bnewp[i] = bp[i];
+	start_ptr_assign();
 
 
       // only stamps if net current changes
@@ -358,7 +346,7 @@ void Circuit::solve_LU_core(Tran &tran){
 // solve the node voltages using direct LU
 void Circuit::solve_LU(Tran &tran){
 	solve_init();
-	//solve_LU_core(tran);
+	solve_LU_core(tran);
 }
 
 // given vector x that obtained from LU, set the value to the corresponding
@@ -969,67 +957,6 @@ void Circuit::stamp_VDD_tr(double * b, Net * net){
 	}
 }
 
-
-void Circuit::get_parameters(
-		double & epsilon,
-		double & omega,
-		double & overlap_ratio,
-		size_t & max_block_nodes,
-		int & mode){
-	epsilon		= EPSILON;
-	omega		= OMEGA;
-	overlap_ratio	= OVERLAP_RATIO; 
-	max_block_nodes	= MAX_BLOCK_NODES;
-	mode		= MODE;
-}
-
-// default values of these parameters are at the begining of this file
-void Circuit::set_parameters(
-		double epsilon, 
-		double omega, 
-		double overlap_ratio,
-		size_t max_block_nodes,
-		int mode){
-	EPSILON		= epsilon;
-	OMEGA		= omega;
-	OVERLAP_RATIO 	= overlap_ratio;
-	MAX_BLOCK_NODES	= max_block_nodes;
-	MODE		= mode;
-}
-
-// choose an appropriate omega for the circuit s.t.
-// - node size (use replist)
-// - type (c4 or wb)
-// - number of layers
-void Circuit::select_omega(){
-	double omega=OMEGA;
-	size_t num_nodes = replist.size();
-	size_t num_layers = layers.size();
-	if( num_nodes < 0.05e6 )
-		omega=1.0;
-	else if (num_nodes < 0.2e6 )
-		omega = 1.1;
-	else if (num_nodes < 0.3e6 )
-		omega = 1.2;
-	else if (num_nodes < 0.5e6 )
-		omega = 1.3;
-	else if (num_nodes < 1.2e6 )
-		omega = 1.4;
-	else
-		omega = 1.5;
-
-	if( circuit_type == WB && num_layers >= 8 ) omega += 0.2;
-
-	if( circuit_type == C4 ) omega += 0.1;
-
-	if( name == "GND" && num_nodes < 1.2e6) omega -= 0.1;
-
-	if( omega >= 1.6 ) omega = 1.6;
-	if( omega <= 1.0 ) omega = 1.0;
-
-	OMEGA = omega;
-}
-
 // decide transient step current values
 void Circuit::current_tr(Net *net, double &time){
 	double slope = 0;
@@ -1175,24 +1102,6 @@ void Circuit::assign_task(int N_proc, int N){
       tot += num_temp;
       end[i]= tot;
       //clog<<"proc, N, start, end: "<<i<<" "<<N<<" "<<start[i]<<" "<<end[i]<<endl;
-   }
-}
-
-void Circuit::assign_task_tree(int N_proc, int N){
-   size_t num = N / N_proc;
-   int res = N % N_proc;
-   size_t  tot = 0;
-   size_t num_temp = 0;
-   clog<<"num, res: "<<num<<" "<<res<<endl;
-   for(int i=0;i<N_proc;i++){
-      my_id =i;
-      num_temp = num;
-      if(i < res)
-         num_temp++;
-      start_tree[i] = tot;
-      tot += num_temp;
-      end_tree[i]= tot;
-      // clog<<"proc, N, start, end: "<<i<<" "<<N<<" "<<start_tree[i]<<" "<<end_tree[i]<<endl;
    }
 }
 
@@ -2010,58 +1919,6 @@ void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
    //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
  }
 
-// solve rest columns with FFS and FBS
-void Circuit::solve_single_col(double *X){
-#if 0    
-int i, j, n = L->n ;   
-    //********* for the rest of nodes, solve in sequential
-    Node_G *nd, *p;
-    int col = 0;
-    // solve the rest of node in FFS
-    for(i = base_level[level_tr];i<tree.size();i++){	
-	    // loop all the head nodes in level i
-	    nd = tree[i];
-	    p = nd;
-	    // solve the list connected by head node
-	    while(1){
-		    col = p->value;
-		    //clog<<"solve col: "<<col<<endl;
-		    solve_col_FFS(L, X, col, Lx, Li, Lp, Lnz);
-		    if(p->children == NULL) break;
-		    if(p->children->level == p->level)
-		    	p = p->children;
-		    else break;
-	    }
-    }
-    //for(i=0;i<n;i++)
-	//cout<<"i, x after ffs: "<<i<<" "<<X[i]<<endl;
-    // then solve these node in FBS
-    vector<Node_G *> children;
-    for(i = tree.size()-1; i >= base_level[level_tr]; i--){	
-	    // loop all the head nodes in level i
-	    nd = tree[i];
-	    p = nd;
-	    children.push_back(nd);
-	    while(1){
-		if(p->children == NULL) break;
-		if(p->children->level == p->level){
-			p = p->children;
-			children.push_back(p);
-		}
-		else break;	
-	    }
-
-	    // solve the list connected by head node
-	    for(j=children.size()-1; j>=0; j--){
-		    p = children[j];
-		    col = p->value;
-		    solve_col_FBS(L, X, col, Lx, Li, Lp, Lnz);
-	    }
-	    children.clear();
-    }
-#endif
-}
-//#endif
 
 // FFS solve
 void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
@@ -2101,42 +1958,3 @@ void Circuit::solve_col_FBS(cholmod_factor *L, double *X, int &j,
    if(L->is_ll == true)
 	   X [j] /=  d ;
 }
-
-#if 0
-// FFS solve
-void Circuit::solve_col_FFS_pr(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz){
-   int p, lnz, pend;
-   
-   p = Lp [j] ;
-   lnz = Lnz[j] ;
-   pend = p + lnz ;
-
-   double y = X [j] ;
-   if(L->is_ll == true)
-	   X[j] /= Lx [p] ;
-   for (p++ ; p < pend ; p++)
-   	#pragma omp atomic
-	   X [Li [p]] -= Lx [p] * y ;
-}
-
-// FBS solve
-void Circuit::solve_col_FBS_pr(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz){
-   int p, lnz, pend;
-   
-   p = Lp [j] ;
-   lnz = Lnz [j] ;
-   pend = p + lnz ;
-
-   double y = X [j] ;
-   double d = Lx [p] ;
-   if(L->is_ll == false)
-	   X[j] /= d ;
-   for (p++ ; p < pend ; p++)
-	#pragma omp atomic
-	   X[j] -= Lx [p] * X [Li [p]] ;
-   if(L->is_ll == true)
-	   X [j] /=  d ;
-}
-#endif

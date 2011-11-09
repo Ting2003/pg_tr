@@ -80,10 +80,6 @@ public:
 	void solve(Tran &tran);
 	
 	//void set_blocklist(Node * nd);
-
-	static void set_parameters(double, double, double, size_t, int);
-	static void get_parameters(double&, double&, double&, size_t&, int&);
-
 	friend ostream & operator << (ostream & os, const Circuit & ckt);
 	friend class Parser;
 
@@ -138,7 +134,6 @@ private:
 
         double *temp;
 	void assign_task(int N_proc, int N);
-	void assign_task_tree(int N_proc, int N);
 
         void start_thread();
         static void* call_thread_task(void*arg);
@@ -178,10 +173,7 @@ private:
         pthread_t tid[NTHREADS];
         size_t start[NTHREADS];
         size_t end[NTHREADS];
-	size_t start_tree[NTHREADS];
-	size_t end_tree[NTHREADS];
         int my_id;
-	double **X_temp;
 
         int *id_map;
         cholmod_factor *L;
@@ -195,7 +187,6 @@ private:
         //void solve_eq_sp(cholmod_factor *L, double *X);
 	void solve_eq_pr(cholmod_factor *L, double *X);
         
-	void solve_single_col(double *X);
 
 	void solve_col_FFS(cholmod_factor *L, double *X, int &j,
 	double *Lx, int *Li, int *Lp, int *Lnz);
@@ -243,11 +234,6 @@ private:
 	//size_t x_min, y_min, x_max, y_max;
 
 	// control variables
-	static double EPSILON;
-	static double OMEGA;
-	static double OVERLAP_RATIO;
-	static size_t MAX_BLOCK_NODES;
-	static int MODE; // 0 = IT, 1 = LU
 
 	CIRCUIT_TYPE circuit_type;
 

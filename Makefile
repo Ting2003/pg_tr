@@ -33,6 +33,7 @@ CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(CHOLMOD)/libcamd.a \
             $(CHOLMOD)/libmetis.a \
 	    $(GOTO2)/libgoto2_nehalemp-r1.13.a
+
 	    #$(CHOLMOD)/libgoto2.a 
 	
 main: $(OBJ)

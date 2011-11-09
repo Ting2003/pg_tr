@@ -30,7 +30,7 @@ void Tran:: print_tr_nodes(){
 	double time = 0;
 	size_t j=0;
 	int iter = 0;
-	for(int i=0;i<nodes.size();i++){
+	for(size_t i=0;i<nodes.size();i++){
 		time = 0;
 		iter = 0; 
 		j=0;
