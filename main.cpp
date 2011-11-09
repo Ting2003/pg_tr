@@ -46,14 +46,10 @@ int main(int argc, char * argv[]){
 		report_exit("Ouptut file error\n");
 
 	Tran tran;
-	clock_t s, e;
-	s = clock();
 	// start to parfile
 	vector<Circuit *> cktlist;
 	Parser parser(&cktlist);
 	parser.parse(input, tran);
-	e = clock();
-	clog<<"parse cost, omp: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 	// do the job
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];

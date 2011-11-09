@@ -263,18 +263,11 @@ void Circuit::solve_LU_core(Tran &tran){
    
    stamp_current_tr(bp, time);
    
-   clock_t t1, t2;
-   t1 = clock();
    Algebra::CK_decomp(A, L, cm);
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
    Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
-
-   //cholmod_print_factor(L, "L", cm);
-   
-   t2 = clock();
-   clog<<"decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   Lnz = static_cast<int *>(L->nz); 
    A.clear();
 //#if 0 
    /*********** the following 2 parts can be implemented with pthreads ***/
@@ -284,11 +277,21 @@ void Circuit::solve_LU_core(Tran &tran){
 
    temp = new double [n];
    // then substitute all the nodes rid
-   start_ptr_assign_rid();
-   start_ptr_assign_bp();
-
-   start_ptr_assign_xp();
-   start_ptr_assign_xp_b();
+   for(size_t i=0;i<n;i++){
+	int id = id_map[i];
+	replist[id]->rid = i;
+	temp[i] = bp[i];
+   }
+   //start_ptr_assign_rid();
+   for(size_t i=0;i<n;i++)
+	bp[i] = temp[id_map[i]];
+   //start_ptr_assign_bp();
+   for(size_t i=0;i<n;i++)
+	temp[i] = xp[i];
+   //start_ptr_assign_xp();
+   for(size_t i=0;i<n;i++)
+	xp[i] = temp[id_map[i]];
+   //start_ptr_assign_xp_b();
 
    delete [] temp;
    /*****************************************/ 
@@ -299,23 +302,32 @@ void Circuit::solve_LU_core(Tran &tran){
    //stamp_current_tr(bnewp, tran, time);
    modify_rhs_tr(bnewp, xp, tran);
 
-   t1 = clock(); 
+   //clock_t t1, t2;
+   //t1 = clock(); 
    solve_eq(xp);
+   //t2 = clock();
+   //clog<<"solve_eq: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   // bnewp[i] = bp[i]
+   //start_ptr_assign();
+   //modify_rhs_tr(bnewp, xp, tran);
+
+   //t1 = clock();
    //x = cholmod_solve(CHOLMOD_A, L, bnew, cm);
    //xp = static_cast<double *>(x->x);
  
-   t2 = clock();
-   clog<<"time for solve_tr: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   //t2 = clock();
+   //clog<<"time for solve_tr: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-   t1 = clock();
+    //return;
+   //t1 = clock();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
        // bnewp[i] = bp[i];
-       //for(size_t i=0;i<n;i++)
-	//bnewp[i] = bp[i];
-	start_ptr_assign();
+       for(size_t i=0;i<n;i++)
+	bnewp[i] = bp[i];
+	//start_ptr_assign();
 
 
       // only stamps if net current changes
@@ -334,8 +346,8 @@ void Circuit::solve_LU_core(Tran &tran){
       time += tran.step_t;
       iter ++;
    }
-   t2 = clock();
-   clog<<"1000 iters cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   //t2 = clock();
+   //clog<<"1000 iters cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
