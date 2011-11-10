@@ -44,8 +44,6 @@ Circuit::Circuit(string _name):name(_name),
 	for(int i=0;i<MAX_LAYER;i++)
 		layer_dir[i]=NA;
 	id_map = NULL;
-	s_col_FFS = NULL;
-	s_col_FBS = NULL;
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -60,8 +58,6 @@ Circuit::~Circuit(){
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
 	//delete [] id_map;
-	delete [] s_col_FFS;
-	delete [] s_col_FBS;
 	Lx = NULL;
 	Li = NULL;
 	Lp = NULL;
@@ -303,38 +299,16 @@ void Circuit::solve_LU_core(Tran &tran){
 //#endif
    // bnewp[i] = bp[i]
    start_ptr_assign();
-
    //stamp_current_tr(bnewp, tran, time);
    modify_rhs_tr(bnewp, xp, tran);
-
-   s_col_FFS = new int [n];
-   s_col_FBS = new int [n];
-   //clock_t t1, t2;
-   //t1 = clock(); 
-   solve_eq_0(xp);
-   //t2 = clock();
-   //clog<<"solve_eq: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-   // bnewp[i] = bp[i]
-   //start_ptr_assign();
-   //modify_rhs_tr(bnewp, xp, tran);
-
-   //t1 = clock();
-   //x = cholmod_solve(CHOLMOD_A, L, bnew, cm);
-   //xp = static_cast<double *>(x->x);
- 
-   //t2 = clock();
-   //clog<<"time for solve_tr: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
+   solve_eq(xp);
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-    //return;
-   //t1 = clock();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
        // bnewp[i] = bp[i];
        for(size_t i=0;i<n;i++)
 	bnewp[i] = bp[i];
-	//start_ptr_assign();
 
 
       // only stamps if net current changes
@@ -345,18 +319,15 @@ void Circuit::solve_LU_core(Tran &tran){
       modify_rhs_tr(bnewp, xp, tran); 
 	
       solve_eq(xp);
-      //x = cholmod_solve(CHOLMOD_A, L, bnew, cm); 
-      //xp = static_cast<double *>(x->x);
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
       iter ++;
    }
-   //t2 = clock();
-   //clog<<"1000 iters cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
    cholmod_free_dense(&b, cm);
+   cholmod_free_dense(&bnew, cm);
    cholmod_free_factor(&L, cm);
    cholmod_finish(&c);
 }
@@ -1469,7 +1440,7 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
 }
 */
 
-void Circuit::solve_eq_0(double *X){
+void Circuit::solve_eq(double *X){
    int p, q, r, lnz, pend;
    int j, n = L->n ;
    // assign xp[i] = bnewp[i]
@@ -1687,513 +1658,6 @@ void Circuit::solve_eq_0(double *X){
       }
       //#endif
    }
-   //t2 = clock();
-   //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 }
 
-// use recorded column_flag to do super node computation
-// don't need to judge every time
-void Circuit::solve_eq(double *X){
-   int p, q, r, lnz, pend;
-   int j, n = L->n ;
-   // assign xp[i] = bnewp[i]
-   for(int i=0;i<n;i++)
-	X[i] = bnewp[i];
-   //start_ptr_assign_1(); 
 
-   //clock_t t1, t2;
-   //t1 = clock();
-   // FFS solve
-   for (j = 0 ; j < n ; ){
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      if (s_col_FFS[j]==1)//lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-
-         double y = X [j] ;
-         if(L->is_ll == true){
-            X[j] /= Lx [p] ;
-         }
-
-         for (p++ ; p < pend ; p++)
-         {
-            X [Li [p]] -= Lx [p] * y ;
-         }
-         j++ ;	/* advance to next column of L */
-
-      }
-      //#if 0
-      else if (s_col_FFS[j]==2)//lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [2] ;
-         q = Lp [j+1] ;
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-         }
-
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            X [j+1] = y [1] ;
-         }
-         for (p += 2, q++ ; p < pend ; p++, q++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
-         }
-         j += 2 ;	    /* advance to next column of L */
-
-      }
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3] ;
-         q = Lp [j+1] ;
-         r = Lp [j+2] ;
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            y [2] = X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-         for (p += 3, q += 2, r++ ; p < pend ; p++, q++, r++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] + Lx [r] * y [2] ;
-         }
-         j += 3 ;	    /* advance to next column of L */
-      }
-      //#endif
-   }
-   //t2 = clock();
-   //clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
-   //t1 = clock();
-   // FBS solve
-   for(j = n-1; j >= 0; ){
-
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      /* find a chain of supernodes (up to j, j-1, and j-2) */
-
-      if (s_col_FBS[j]==1)//j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-
-         double d = Lx [p] ;
-         if(L->is_ll == false)
-            X[j] /= d ;
-         for (p++ ; p < pend ; p++)
-         {
-            X[j] -= Lx [p] * X [Li [p]] ;
-         }
-         if(L->is_ll == true)
-            X [j] /=  d ;
-         j--;
-      }
-      else if (s_col_FBS[j]==2)//lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [2], t ;
-         q = Lp [j-1] ;
-         double d [2] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         t = Lx [q+1] ;
-         if(L->is_ll == false){
-            y [0] = X [j  ] / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-         }
-         else{
-            y [0] = X [j  ] ;
-            y [1] = X [j-1] ;
-         }
-         for (p++, q += 2 ; p < pend ; p++, q++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t * y [0]) / d [1] ;
-         }
-         else
-            y [1] -= t * y [0] ;
-         X [j  ] = y [0] ;
-         X [j-1] = y [1] ;
-         j -= 2 ;	    /* advance to the next column of L */
-
-      }
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3], t [3] ;
-         q = Lp [j-1] ;
-         r = Lp [j-2] ;
-         double d [3] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         d [2] = Lx [r] ;
-         t [0] = Lx [q+1] ;
-         t [1] = Lx [r+1] ;
-         t [2] = Lx [r+2] ;
-         if(L->is_ll == false){
-            y [0] = X [j]   / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-            y [2] = X [j-2] / d [2] ;
-         }
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j-1] ;
-            y [2] = X [j-2] ;
-         }
-         for (p++, q += 2, r += 3 ; p < pend ; p++, q++, r++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-            y [2] -= Lx [r] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t [0] * y [0]) / d [1] ;
-            y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
-         }
-         else{
-            y [1] -= t [0] * y [0] ;
-            y [2] -= t [2] * y [0] + t [1] * y [1] ;
-         }
-         X [j-2] = y [2] ;
-         X [j-1] = y [1] ;
-         X [j  ] = y [0] ;
-         j -= 3 ;	    /* advance to the next column of L */
-      }
-      //#endif
-   }
-   //t2 = clock();
-   //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-}
-
-// solve with ompenmp
-// vector<Node_G *> children can be built when build_tree, so that
-// memory will be more, bu the time for solving will be saved
-//#if 0
-void Circuit::solve_eq_pr(cholmod_factor *L, double *X){
-   double *Lx;
-   int *Li, *Lp, *Lnz;
-   int p, q, r, lnz, pend;
-   Lp = static_cast<int *>(L->p);
-   Lx = static_cast<double*> (L->x);
-   Li = static_cast<int*>(L->i) ;
-   Lnz = static_cast<int *>(L->nz);
-   int j, n = L->n ;
-   // assign xp[i] = bnewp[i]
-   //for(int i=0;i<n;i++)
-	//X[i] = res[i]; 
-   start_ptr_assign_1(); 
-
-   clock_t t1, t2;
-   t1 = clock();
-   int count = 0;
-   // FFS solve
-   for (j = 0 ; j < n ; ){
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      //if (lnz < 4 || lnz != Lnz [j+1] + 1 || Li [p+1] != j+1)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-	      double y = X [j] ;
-	      if(L->is_ll == true){
-		      X[j] /= Lx [p] ;
-	      }
-
-	      if(X[j] != 0){
-		 	count ++;
-		      for (p++ ; p < pend ; p++)
-		      {
-			      X [Li [p]] -= Lx [p] * y ;
-		      }
-
-	      }
-	      j++ ;	/* advance to next column of L */
-      }
-#if 0
-      else if (lnz != Lnz [j+2] + 2 || Li [p+2] != j+2)
-      {
-
-	      /* -------------------------------------------------------------- */
-	      /* solve with a supernode of two columns of L */
-	      /* -------------------------------------------------------------- */
-	      //if(flag_col[j] == false && flag_col[j+1] == false){
-		      double y [2] ;
-		      q = Lp [j+1] ;
-		      if(L->is_ll == true){
-			      y [0] = X [j] / Lx [p] ;
-			      y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-			      X [j  ] = y [0] ;
-			      X [j+1] = y [1] ;
-		      }
-
-		      else{
-			      y [0] = X [j] ;
-			      y [1] = X [j+1] - Lx [p+1] * y [0] ;
-			      X [j+1] = y [1] ;
-		      }
-		      for (p += 2, q++ ; p < pend ; p++, q++)
-		      {
-			      X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] ;
-		      }
-	      //}
-	      // else only  solve 1 column
-	      //else if(flag_col[j] == false){
-
-	      //}
-	      j += 2 ;	    /* advance to next column of L */
-
-      }
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3] ;
-         q = Lp [j+1] ;
-         r = Lp [j+2] ;
-         if(L->is_ll == true){
-            y [0] = X [j] / Lx [p] ;
-            y [1] = (X [j+1] - Lx [p+1] * y [0]) / Lx [q] ;
-            y [2] = (X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1]) / Lx [r] ;
-            X [j  ] = y [0] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j+1] - Lx [p+1] * y [0] ;
-            y [2] = X [j+2] - Lx [p+2] * y [0] - Lx [q+1] * y [1] ;
-            X [j+1] = y [1] ;
-            X [j+2] = y [2] ;
-         }
-         for (p += 3, q += 2, r++ ; p < pend ; p++, q++, r++)
-         {
-            X [Li [p]] -= Lx [p] * y [0] + Lx [q] * y [1] + Lx [r] * y [2] ;
-         }
-         j += 3 ;	    /* advance to next column of L */
-      }
-#endif
-   }
-   t2 = clock();
-   clog<<count<<" out of: "<<n<<" are computed in FFS. "<<endl;
-   clog<<"FFS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
-
-   t1 = clock();
-   // FBS solve
-   for(j = n-1; j >= 0; ){
-
-      /* get the start, end, and length of column j */
-      p = Lp [j] ;
-      lnz = Lnz [j] ;
-      pend = p + lnz ;
-
-      /* find a chain of supernodes (up to j, j-1, and j-2) */
-
-      if (j < 4 || lnz != Lnz [j-1] - 1 || Li [Lp [j-1]+1] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a single column of L */
-         /* -------------------------------------------------------------- */
-         double d = Lx [p] ;
-         if(L->is_ll == false)
-            X[j] /= d ;
-         for (p++ ; p < pend ; p++)
-         {
-            X[j] -= Lx [p] * X [Li [p]] ;
-         }
-         if(L->is_ll == true)
-            X [j] /=  d ;
-         j--;
-      }
-//#if 0
-      else if (lnz != Lnz [j-2]-2 || Li [Lp [j-2]+2] != j)
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of two columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [2], t ;
-         q = Lp [j-1] ;
-         double d [2] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         t = Lx [q+1] ;
-         if(L->is_ll == false){
-            y [0] = X [j  ] / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-         }
-         else{
-            y [0] = X [j  ] ;
-            y [1] = X [j-1] ;
-         }
-         for (p++, q += 2 ; p < pend ; p++, q++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t * y [0]) / d [1] ;
-         }
-         else
-            y [1] -= t * y [0] ;
-         X [j  ] = y [0] ;
-         X [j-1] = y [1] ;
-         j -= 2 ;	    /* advance to the next column of L */
-
-      }
-      else
-      {
-
-         /* -------------------------------------------------------------- */
-         /* solve with a supernode of three columns of L */
-         /* -------------------------------------------------------------- */
-
-         double y [3], t [3] ;
-         q = Lp [j-1] ;
-         r = Lp [j-2] ;
-         double d [3] ;
-         d [0] = Lx [p] ;
-         d [1] = Lx [q] ;
-         d [2] = Lx [r] ;
-         t [0] = Lx [q+1] ;
-         t [1] = Lx [r+1] ;
-         t [2] = Lx [r+2] ;
-         if(L->is_ll == false){
-            y [0] = X [j]   / d [0] ;
-            y [1] = X [j-1] / d [1] ;
-            y [2] = X [j-2] / d [2] ;
-         }
-         else{
-            y [0] = X [j] ;
-            y [1] = X [j-1] ;
-            y [2] = X [j-2] ;
-         }
-         for (p++, q += 2, r += 3 ; p < pend ; p++, q++, r++)
-         {
-            int i = Li [p] ;
-            y [0] -= Lx [p] * X [i] ;
-            y [1] -= Lx [q] * X [i] ;
-            y [2] -= Lx [r] * X [i] ;
-         }
-         if(L->is_ll == true){
-            y [0] /= d [0] ;
-            y [1] = (y [1] - t [0] * y [0]) / d [1] ;
-            y [2] = (y [2] - t [2] * y [0] - t [1] * y [1]) / d [2] ;
-         }
-         else{
-            y [1] -= t [0] * y [0] ;
-            y [2] -= t [2] * y [0] + t [1] * y [1] ;
-         }
-         X [j-2] = y [2] ;
-         X [j-1] = y [1] ;
-         X [j  ] = y [0] ;
-         j -= 3 ;	    /* advance to the next column of L */
-      }
-//#endif
-   }
-   t2 = clock();
-   //clog<<"FBS cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
- }
-
-
-// FFS solve
-void Circuit::solve_col_FFS(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz){
-   int p, lnz, pend;
-   //for(int i=0;i<L->n;i++) 
-	//cout<<"i, X: "<<i<<" "<<X[i]<<endl;
-
-   p = Lp [j] ;
-   lnz = Lnz[j] ;
-   pend = p + lnz ;
-
-   double y = X [j] ;
-   if(L->is_ll == true)
-	   X[j] /= Lx [p] ;
-   //cout<<"j, X: "<<j<<" "<<X[j]<<endl;
-
-   for (++p ; p < pend ; p++){
-	   X [Li [p]] -= Lx [p] * y ;
-  }
-}
-
-// FBS solve
-void Circuit::solve_col_FBS(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz){
-   int p, lnz, pend;
-   
-   p = Lp [j] ;
-   lnz = Lnz [j] ;
-   pend = p + lnz ;
-
-   double d = Lx [p] ;
-   if(L->is_ll == false)
-	   X[j] /= d ;
-   for (++p ; p < pend ; p++)
-	   X[j] -= Lx [p] * X [Li [p]] ;
-   if(L->is_ll == true)
-	   X [j] /=  d ;
-}

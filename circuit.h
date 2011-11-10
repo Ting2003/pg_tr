@@ -176,8 +176,6 @@ private:
         int my_id;
 
         int *id_map;
-	int *s_col_FFS;
-	int *s_col_FBS;
         cholmod_factor *L;
 	double *Lx;
 	int *Li, *Lp, *Lnz;
@@ -187,32 +185,9 @@ private:
         double *bp, *xp;
         double *bnewp;
 
-        void solve_eq(double *X);
-	void solve_eq_0(double *X);
-        //void solve_eq_sp(cholmod_factor *L, double *X);
-	void solve_eq_pr(cholmod_factor *L, double *X);
+	double *bpxx, *xpxx, *bnewpxx;
+	void solve_eq(double *X);
         
-
-	void solve_col_FFS(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz);
-	
-	void solve_col_FBS(cholmod_factor *L, double *X, int &j,
-	double *Lx, int *Li, int *Lp, int *Lnz);
-	#if 0	
-	// ****************functions and members for sp_v methods ***
-        Path_Graph pg;
-        int *path_b, *path_x;
-        int len_path_b, len_path_x;
-        
-	void update_node_set_bx();
-        void parse_path_table();
-        void build_path_graph(cholmod_factor *L);
-        void build_FFS_path(cholmod_factor *L);
-        void build_FBS_path(cholmod_factor *L);
-        void set_up_path_table(cholmod_factor *L);
-        void find_path(vector<size_t>&node_set, List_G &path);
-        
-#endif
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes
