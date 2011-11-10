@@ -59,7 +59,7 @@ Circuit::~Circuit(){
 		NetPtrVector & ns = net_set[type];
 		for(size_t j=0;j<ns.size();j++) delete ns[j];
 	}
-	delete [] id_map;
+	//delete [] id_map;
 	delete [] s_col_FFS;
 	delete [] s_col_FBS;
 	Lx = NULL;
@@ -298,6 +298,7 @@ void Circuit::solve_LU_core(Tran &tran){
    //start_ptr_assign_xp_b();
 
    delete [] temp;
+   delete [] id_map;
    /*****************************************/ 
 //#endif
    // bnewp[i] = bp[i]
@@ -341,8 +342,7 @@ void Circuit::solve_LU_core(Tran &tran){
       //stamp_current_tr(bnewp, tran, time);
       stamp_current_tr_1(bp, bnewp, time);
      // get the new bnewp
-      modify_rhs_tr(bnewp, xp, tran);
-    
+      modify_rhs_tr(bnewp, xp, tran); 
 	
       solve_eq(xp);
       //x = cholmod_solve(CHOLMOD_A, L, bnew, cm); 
@@ -357,6 +357,7 @@ void Circuit::solve_LU_core(Tran &tran){
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
    cholmod_free_dense(&b, cm);
+   cholmod_free_factor(&L, cm);
    cholmod_finish(&c);
 }
 
@@ -1491,7 +1492,7 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-	 s_col_FFS[j] = 1;
+	 //s_col_FFS[j] = 1;
          double y = X [j] ;
          if(L->is_ll == true){
             X[j] /= Lx [p] ;
@@ -1511,7 +1512,7 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a supernode of two columns of L */
          /* -------------------------------------------------------------- */
-	 s_col_FFS[j] = 2;
+	 //s_col_FFS[j] = 2;
          double y [2] ;
          q = Lp [j+1] ;
          if(L->is_ll == true){
@@ -1539,7 +1540,7 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a supernode of three columns of L */
          /* -------------------------------------------------------------- */
-	 s_col_FFS[j] = 3;
+	 //s_col_FFS[j] = 3;
          double y [3] ;
          q = Lp [j+1] ;
          r = Lp [j+2] ;
@@ -1587,7 +1588,7 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a single column of L */
          /* -------------------------------------------------------------- */
-	 s_col_FBS[j] = 1;
+	 //s_col_FBS[j] = 1;
          double d = Lx [p] ;
          if(L->is_ll == false)
             X[j] /= d ;
@@ -1605,7 +1606,7 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a supernode of two columns of L */
          /* -------------------------------------------------------------- */
-	 s_col_FBS[j] =2;
+	 //s_col_FBS[j] =2;
          double y [2], t ;
          q = Lp [j-1] ;
          double d [2] ;
@@ -1643,7 +1644,6 @@ void Circuit::solve_eq_0(double *X){
          /* -------------------------------------------------------------- */
          /* solve with a supernode of three columns of L */
          /* -------------------------------------------------------------- */
-	 s_col_FBS[j] =3;
          double y [3], t [3] ;
          q = Lp [j-1] ;
          r = Lp [j-2] ;

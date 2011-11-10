@@ -182,9 +182,11 @@ private:
 	double *Lx;
 	int *Li, *Lp, *Lnz;
         cholmod_common c, *cm;
+
         cholmod_dense *b, *x, *bnew;
         double *bp, *xp;
         double *bnewp;
+
         void solve_eq(double *X);
 	void solve_eq_0(double *X);
         //void solve_eq_sp(cholmod_factor *L, double *X);
