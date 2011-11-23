@@ -431,22 +431,16 @@ void Circuit::stamp_by_set(Matrix & A, double * b){
 
 // stamp transient current values into rhs
 void Circuit::stamp_current_tr(double *b, double &time){
-	for(int type=0;type<NUM_NET_TYPE;type++){
-		NetPtrVector & ns = net_set[type];
-		if(type == CURRENT)
-			for(size_t i=0;i<ns.size();i++)
-				stamp_current_tr_net(b, ns[i], time);
-	}
+	NetPtrVector & ns = net_set[CURRENT];
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net(b, ns[i], time);
 }
 
 // stamp transient current values into rhs
 void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
-	//for(int type=0;type<NUM_NET_TYPE;type++){
-		NetPtrVector & ns = net_set[CURRENT];
-		//if(type == CURRENT)
-			for(size_t i=0;i<ns.size();i++)
-				stamp_current_tr_net_1(bp, b, ns[i], time);
-	//}
+	NetPtrVector & ns = net_set[CURRENT];
+	for(size_t i=0;i<ns.size();i++)
+		stamp_current_tr_net_1(bp, b, ns[i], time);
 }
 
 // stamp the transient matrix
