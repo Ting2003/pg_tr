@@ -46,7 +46,7 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 	int *Ti;
 	int *Tj;
 	double *Tx;
-	int stype = 1; // upper triangular storage
+	int stype = -1; // lower triangular storage
 	//-1;// lower triangular storage
 	T = cholmod_allocate_triplet(n_row, n_col, nnz, stype, 
 			CHOLMOD_REAL, cm);

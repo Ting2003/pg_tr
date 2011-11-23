@@ -29,18 +29,15 @@ Tran::~Tran(){
 void Tran:: print_tr_nodes(){
 	double time = 0;
 	size_t j=0;
-	int iter = 0;
 	for(size_t i=0;i<nodes.size();i++){
 		time = 0;
-		iter = 0; 
 		j=0;
-		cout<<"NODE: "<<nodes[i].name<<endl;
-		while(time < tot_t*1e9){// && iter <1){
-			printf("%.5e  %.5e\n", time, 
+		cout<<endl<<"Node: "<<nodes[i].name<<endl<<endl;
+		while(time < tot_t){// && iter <1){
+			printf("%.3e  %.6e\n", time, 
 				nodes[i].value[j]);
 			j++;
-			iter ++;
-			time += step_t*1e9;
+			time += step_t;
 		}
 		cout<<"END: "<<nodes[i].name<<endl;
 	}	

@@ -257,13 +257,21 @@ void Circuit::solve_LU_core(Tran &tran){
    bnewp = static_cast<double *>(bnew->x);
  
    double time = 0;
-   int iter = 0;
+   //int iter = 0;
    stamp_by_set_tr(A, bp, tran);
    make_A_symmetric_tr(bp, xp, tran);
    
    stamp_current_tr(bp, time);
-   
+  
+   //clock_t t1, t2;
+   //t1 = clock();
+   //double ts, te;
+   //ts = omp_get_wtime();
    Algebra::CK_decomp(A, L, cm);
+   //te = omp_get_wtime();
+   //t2 = clock();
+   //clog<<"omp decomp cost: "<<te-ts<<endl;
+   //clog<<"tr decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
    Li = static_cast<int*>(L->i) ;
@@ -304,11 +312,14 @@ void Circuit::solve_LU_core(Tran &tran){
    solve_eq(xp);
    save_tr_nodes(tran, xp);
    time += tran.step_t;
+   //t1 = clock();
+   //ts = omp_get_wtime();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
        // bnewp[i] = bp[i];
        for(size_t i=0;i<n;i++)
 	bnewp[i] = bp[i];
+	//start_ptr_assign();
 
 
       // only stamps if net current changes
@@ -322,8 +333,12 @@ void Circuit::solve_LU_core(Tran &tran){
 
       save_tr_nodes(tran, xp);
       time += tran.step_t;
-      iter ++;
+      //iter ++;
    }
+   //t2 = clock();
+   //te = omp_get_wtime();
+   //clog<<"omp 1000 iter cost: "<<te-ts<<endl;
+   //clog<<"1000 iter cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
    cholmod_free_dense(&b, cm);
@@ -426,12 +441,12 @@ void Circuit::stamp_current_tr(double *b, double &time){
 
 // stamp transient current values into rhs
 void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
-	for(int type=0;type<NUM_NET_TYPE;type++){
-		NetPtrVector & ns = net_set[type];
-		if(type == CURRENT)
+	//for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[CURRENT];
+		//if(type == CURRENT)
 			for(size_t i=0;i<ns.size();i++)
 				stamp_current_tr_net_1(bp, b, ns[i], time);
-	}
+	//}
 }
 
 // stamp the transient matrix
@@ -505,7 +520,7 @@ void Circuit::stamp_resistor(Matrix & A, Net * net){
 
            //clog<<"("<<k<<" "<<k<<" "<<G<<")"<<endl;
            if(!nl->is_ground() &&(nl->nbr[TOP]==NULL || 
-                 nl->nbr[TOP]->type != INDUCTANCE)&&(l > k)){
+                 nl->nbr[TOP]->type != INDUCTANCE)&&(k > l)){
                     A.push_back(k,l,-G);
 
                   //clog<<"("<<k<<" "<<l<<" "<<-G<<")"<<endl;
@@ -518,7 +533,7 @@ void Circuit::stamp_resistor(Matrix & A, Net * net){
 		A.push_back(l,l, G);
                 //clog<<"("<<l<<" "<<l<<" "<<G<<")"<<endl;
 		if(!nk->is_ground()&& (nk->nbr[TOP]==NULL ||
-		  nk->nbr[TOP]->type != INDUCTANCE) && k > l){
+		  nk->nbr[TOP]->type != INDUCTANCE) && l > k){
 			A.push_back(l,k,-G);
 		//clog<<"("<<l<<" "<<k<<" "<<-G<<")"<<endl;
                 }
@@ -542,11 +557,11 @@ void Circuit::stamp_resistor_tr(Matrix & A, Net * net){
       //clog<<"("<<k<<" "<<k<<" "<<G<<")"<<endl;
       if(!nl->is_ground() &&(nl->nbr[TOP]==NULL || 
            nl->nbr[TOP]->type != INDUCTANCE)){
-         if(l > k){
+         if(l < k){
             A.push_back(k,l,-G);
             //clog<<"("<<k<<" "<<l<<" "<<-G<<")"<<endl;
          }
-         else if(l < k){ 
+         else if(l > k){ 
             A.push_back(l, k, -G);
             //clog<<"("<<l<<" "<<k<<" "<<-G<<")"<<endl;
          }
@@ -562,11 +577,11 @@ void Circuit::stamp_resistor_tr(Matrix & A, Net * net){
       //clog<<"("<<l<<" "<<l<<" "<<G<<")"<<endl;
       if(!nk->is_ground()&& (nk->nbr[TOP]==NULL ||
            nk->nbr[TOP]->type != INDUCTANCE)){
-         if(k > l){
+         if(k < l){
             A.push_back(l,k,-G);
             //clog<<"("<<l<<" "<<k<<" "<<-G<<")"<<endl;
          }
-         else if(k < l){
+         else if(k > l){
             A.push_back(k, l, -G);
             //clog<<"("<<k<<" "<<l<<" "<<-G<<")"<<endl;
          }
@@ -641,7 +656,7 @@ void Circuit::stamp_inductance_tr(Matrix & A, Net * net, Tran &tran){
 		A.push_back(k,k, Geq-1);
 		//clog<<"("<<k<<" "<<k<<" "<<Geq-1<<")"<<endl;
 		//clog<<nl->isS()<<endl;
-		if(!nl->is_ground()&& nl->isS()!=Y && k<l){
+		if(!nl->is_ground()&& nl->isS()!=Y && k>l){
 			A.push_back(k,l,-Geq);
 		        //clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
 		}
@@ -651,7 +666,7 @@ void Circuit::stamp_inductance_tr(Matrix & A, Net * net, Tran &tran){
 		// -1 is to clear formal inserted 1 at (l,l)
 		A.push_back(l,l, Geq-1);
 		//clog<<"("<<l<<" "<<l<<" "<<Geq-1<<")"<<endl;
-		if(!nk->is_ground() && nk->isS()!=Y && l<k){
+		if(!nk->is_ground() && nk->isS()!=Y && l>k){
 			A.push_back(l,k,-Geq);
 			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
 		}
@@ -674,7 +689,7 @@ void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran){
 	if( nk->isS()!=Y  && !nk->is_ground()) {
 		A.push_back(k,k, Geq);
 		//clog<<"("<<k<<" "<<k<<" "<<Geq<<")"<<endl;
-		if(!nl->is_ground()&& k < l){
+		if(!nl->is_ground()&& k > l){
 			A.push_back(k,l,-Geq);
 			//clog<<"("<<k<<" "<<l<<" "<<-Geq<<")"<<endl;
 		}
@@ -683,7 +698,7 @@ void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran){
 	if( nl->isS() !=Y && !nl->is_ground()) {
 		A.push_back(l,l, Geq);
 		//clog<<"("<<l<<" "<<l<<" "<<Geq<<")"<<endl;
-		if(!nk->is_ground()&& l < k){
+		if(!nk->is_ground()&& l > k){
 			A.push_back(l,k,-Geq);
 			//clog<<"("<<l<<" "<<k<<" "<<-Geq<<")"<<endl;
 		}
