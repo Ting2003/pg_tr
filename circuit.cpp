@@ -312,7 +312,8 @@ void Circuit::solve_LU_core(Tran &tran){
    solve_eq(xp);
    save_tr_nodes(tran, xp);
    time += tran.step_t;
-   //t1 = clock();
+   clock_t t1, t2;
+   t1 = clock();
    //ts = omp_get_wtime();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
@@ -335,10 +336,10 @@ void Circuit::solve_LU_core(Tran &tran){
       time += tran.step_t;
       //iter ++;
    }
-   //t2 = clock();
+   t2 = clock();
    //te = omp_get_wtime();
    //clog<<"omp 1000 iter cost: "<<te-ts<<endl;
-   //clog<<"1000 iter cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
+   clog<<"1000 iter cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    release_tr_nodes(tran);
    cholmod_free_dense(&x, cm);
    cholmod_free_dense(&b, cm);
