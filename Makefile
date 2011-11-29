@@ -33,7 +33,7 @@ CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(CHOLMOD)/libcamd.a \
             $(CHOLMOD)/libmetis.a \
 	    $(CHOLMOD)/libgoto2.a 
-	    $(GOTO2)/libgoto2_nehalemp-r1.13.a
+	    #$(GOTO2)/libgoto2_nehalemp-r1.13.a
 	
 main: $(OBJ)
 	@echo "Making project..."
