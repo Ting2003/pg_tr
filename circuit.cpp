@@ -311,7 +311,7 @@ void Circuit::solve_LU_core(Tran &tran){
    
    set_eq_induc(tran);
    set_eq_capac(tran);
-   modify_rhs_tr(bnewp, xp, tran);
+   modify_rhs_tr_0(bnewp, xp, tran);
    
    solve_eq(xp);
    save_tr_nodes(tran, xp);
@@ -488,6 +488,21 @@ void Circuit::stamp_by_set_tr(Matrix & A, double *b, Tran &tran){
 	}
 }
 
+// update rhs by transient nets
+void Circuit::modify_rhs_tr_0(double * b, double *x, Tran &tran){
+	for(int type=0;type<NUM_NET_TYPE;type++){
+		NetPtrVector & ns = net_set[type];
+		if(type ==CAPACITANCE){	
+			for(size_t i=0;i<ns.size();i++)
+				modify_rhs_c_tr_0(ns[i], b, x, tran);
+		}
+		else if(type == INDUCTANCE){
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr_0(ns[i], b, x, tran);	
+			}
+		}
+	}
+}
 // update rhs by transient nets
 void Circuit::modify_rhs_tr(double * b, double *x, Tran &tran){
 	for(int type=0;type<NUM_NET_TYPE;type++){
@@ -708,7 +723,7 @@ void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran){
 
 // add Ieq into rhs
 // Ieq = i(t) + 2*C / delta_t *v(t)
-void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
+void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, Tran &tran){
 	double i_t = 0;
 	double temp = 0;
 	double Ieq = 0;
@@ -716,8 +731,10 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
         // nk point to Z node
-        if(nk->isS() != Z)
+        if(nk->isS() != Z){
 		swap<Node *>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
 	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
 	size_t k = nk->rid;
 	size_t l = nl->rid;
@@ -726,7 +743,89 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	Node *a = r->ab[0]->rep;
 	Node *b = r->ab[1]->rep;
 	// a point to Z node
-	if(a->isS()!=Z) swap<Node *>(a, b);
+	if(a->isS()!=Z) {
+		swap<Node *>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	//clog<<"a, b: "<<*a<<" "<<*b<<endl;
+
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	//i_t = (b->value - a->value) / r->value;
+	i_t = (x[id_b] - x[id_a]) / r->value;
+	//if(b->value != x[id_b] || a->value != x[id_a])
+	   //cout<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+	//clog<<"i_t: "<<i_t<<endl;
+	//temp = 2*net->value / tran.step_t * 
+		//(nk->value - nl->value);
+       
+        // push 2 nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+ #if 0
+        if(iter ==0){
+           pg.node_set_x.push_back(k);
+           if(!nl->is_ground()) {
+              //clog<<*nl<<" "<<l<<endl;
+              pg.node_set_x.push_back(l);
+           }
+           else if(!b->is_ground()){
+              //clog<<*b<<" "<<id_b<<endl;
+              pg.node_set_x.push_back(id_b);
+           }
+        }
+#endif
+	if(nk->is_ground())
+	 //temp = 2*net->value/tran.step_t*(0-x[l]);
+	 temp = net->value *(-x[l]);
+        else if(nl->is_ground()){
+         //temp = 2*net->value/tran.step_t *(x[k]);
+	 temp = net->value *x[k];
+        }
+        else
+         //temp = 2*net->value/tran.step_t *(x[k] - x[l]);
+	 temp = net->value *(x[k]-x[l]);
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
+	
+	Ieq  = (i_t + temp);
+	//clog<< "Ieq is: "<<Ieq<<endl;
+	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
+	if(!nk->is_ground()&& nk->isS()!=Y){
+		 rhs[k] += Ieq;	// for VDD circuit
+		//clog<<*nk<<" rhs +: "<<rhs[k]<<endl;
+	}
+	if(!nl->is_ground()&& nl->isS()!=Y){
+		 rhs[l] += -Ieq; 
+		//clog<<*nl<<" rhs +: "<<rhs[l]<<endl;
+	}
+}
+
+
+
+// add Ieq into rhs
+// Ieq = i(t) + 2*C / delta_t *v(t)
+void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
+	double i_t = 0;
+	double temp = 0;
+	double Ieq = 0;
+	//clog<<"c net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+        // nk point to Z node
+        //if(nk->isS() != Z)
+		//swap<Node *>(nk, nl);
+	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+
+	Net *r = nk->nbr[TOP];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to Z node
+	//if(a->isS()!=Z) swap<Node *>(a, b);
 	//clog<<"a, b: "<<*a<<" "<<*b<<endl;
 
 	size_t id_a = a->rid;
@@ -794,15 +893,18 @@ void Circuit::set_eq_capac(Tran &tran){
 	for(size_t i=0;i<ns.size();i++)
 		ns[i]->value = 2*ns[i]->value/tran.step_t;
 }
+
 // add Ieq into rhs
 // Ieq = i(t) + delta_t / (2*L) *v(t)
-void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran){
+void Circuit::modify_rhs_l_tr_0(Net *net, double *rhs, double *x, Tran &tran){
 	//clog<<"l net: "<<*net<<endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
 	// nk point to X node
-	if(nk->isS() !=X) 
+	if(nk->isS() !=X){ 
 		swap<Node*>(nk, nl);
+		swap<Node*>(net->ab[0], net->ab[1]);
+	}
 	size_t k = nk->rid;
 	size_t l = nl->rid;
 	double Ieq = 0;
@@ -823,7 +925,77 @@ void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran){
 	Node *a = r->ab[0]->rep;
 	Node *b = r->ab[1]->rep;
 	// a point to X node
-	if(a->isS()!=X) swap<Node*>(a, b);
+	if(a->isS()!=X) {
+		swap<Node*>(a, b);
+		swap<Node*>(r->ab[0], r->ab[1]);
+	}
+	size_t id_a = a->rid;
+	size_t id_b = b->rid;
+	i_t = (x[id_a] - x[id_b]) / r->value;
+	//i_t = (a->value - b->value) / r->value;
+        //if(b->value != x[id_b] || a->value != x[id_a])
+	   //clog<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
+	     //x[id_a]<<" "<<x[id_b]<<endl;
+
+	//clog<<"resiste r: "<<*r<<endl;
+	//clog<<*a<<" "<<*b<<endl;
+	//clog<<"a, b, r, i_t: "<<a->value<<" "<<b->value<<" "<<
+		//r->value<<" "<<i_t<<endl;
+       
+        // push inductance nodes into node_set_x
+        //clog<<*nk<<" "<<k<<endl;
+        //clog<<*b<<" "<<id_b<<endl;
+ #if 0
+        if(iter==0){
+           pg.node_set_x.push_back(k);
+           pg.node_set_x.push_back(id_b);
+        }
+#endif
+	Ieq  = i_t + temp;
+	//clog<<"Ieq: "<<Ieq<<endl;
+	if(nk->isS() !=Y && !nk->is_ground()){
+		 rhs[k] += Ieq; // VDD circuit
+		//clog<<*nk<<" "<<rhs[k]<<endl;
+	}
+	if(nl->isS()!=Y && !nl->is_ground()){
+		 rhs[l] += -Ieq; // VDD circuit
+		//clog<<*nl<<" "<<rhs[l]<<endl;
+	}
+}
+
+// add Ieq into rhs
+// Ieq = i(t) + delta_t / (2*L) *v(t)
+void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran){
+	//clog<<"l net: "<<*net<<endl;
+	Node *nk = net->ab[0]->rep;
+	Node *nl = net->ab[1]->rep;
+	// nk point to X node
+	//if(nk->isS() !=X){ 
+		//swap<Node*>(nk, nl);
+	//}
+	size_t k = nk->rid;
+	size_t l = nl->rid;
+	double Ieq = 0;
+
+	double i_t = 0;
+	double temp = 0;
+	//temp = tran.step_t / (2*net->value) * 
+		//(nl->value - nk->value);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);	
+	//if(nk->value != x[k] || nl->value != x[l])
+	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
+	     //x[k]<<" "<<x[l]<<endl;
+
+	//clog<<"delta_t/2L, nl-nk, temp: "<<tran.step_t / (2*net->value)<<" "<<(nl->value-nk->value)<<" "<<temp<<endl;
+	
+	Net *r = nk->nbr[BOTTOM];
+	Node *a = r->ab[0]->rep;
+	Node *b = r->ab[1]->rep;
+	// a point to X node
+	//if(a->isS()!=X) {
+		//swap<Node*>(a, b);
+	//}
 	size_t id_a = a->rid;
 	size_t id_b = b->rid;
 	i_t = (x[id_a] - x[id_b]) / r->value;
