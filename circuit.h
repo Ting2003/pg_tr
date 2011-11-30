@@ -192,8 +192,11 @@ private:
         double *bp, *xp;
         double *bnewp;
 
-	double *bpxx, *xpxx, *bnewpxx;
 	void solve_eq(double *X);
+	// set s_col_FFS and FBS
+	void solve_eq_set();
+	vector<int> s_col_FFS;
+	vector<int> s_col_FBS;
         
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
