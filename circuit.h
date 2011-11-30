@@ -27,6 +27,8 @@
 #include "transient.h"
 #include "cholmod.h"
 #include <algorithm>
+#include "sp_graph_table.h"
+#include "sp_node.h"
 
 using namespace std;
 using namespace std::tr1;
@@ -193,10 +195,24 @@ private:
         double *bnewp;
 
 	void solve_eq(double *X);
+	void solve_eq_sp(double*X);
 	// set s_col_FFS and FBS
 	void solve_eq_set();
-	vector<int> s_col_FFS;
-	vector<int> s_col_FBS;
+	int* s_col_FFS;
+	int* s_col_FBS;
+	// ********* sparse vectors ******
+	Path_Graph pg;
+	int *path_b, *path_x;
+	int len_path_b, len_path_x;
+	int flag_ck;
+	 void find_super();
+	 void update_node_set_bx();                               
+         void parse_path_table();
+         void build_path_graph();                
+         void build_FFS_path();
+         void build_FBS_path();                  
+         void set_up_path_table();               
+         void find_path(vector<size_t>&node_set, List_G &path);
         
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
