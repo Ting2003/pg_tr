@@ -808,9 +808,7 @@ void Circuit::modify_rhs_c_tr_0(Net *net, double * rhs, double *x, Tran &tran){
 // add Ieq into rhs
 // Ieq = i(t) + 2*C / delta_t *v(t)
 void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
-	double i_t = 0;
 	double temp = 0;
-	double Ieq = 0;
 	//clog<<"c net: "<<*net<<endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
@@ -831,7 +829,7 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	size_t id_a = a->rid;
 	size_t id_b = b->rid;
 	//i_t = (b->value - a->value) / r->value;
-	i_t = (x[id_b] - x[id_a]) / r->value;
+	double i_t = (x[id_b] - x[id_a]) / r->value;
 	//if(b->value != x[id_b] || a->value != x[id_a])
 	   //cout<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
 	     //x[id_a]<<" "<<x[id_b]<<endl;
@@ -855,21 +853,17 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
         }
 #endif
 	if(nk->is_ground())
-	 //temp = 2*net->value/tran.step_t*(0-x[l]);
 	 temp = net->value *(-x[l]);
-        else if(nl->is_ground()){
-         //temp = 2*net->value/tran.step_t *(x[k]);
+        else if(nl->is_ground())
 	 temp = net->value *x[k];
-        }
         else
-         //temp = 2*net->value/tran.step_t *(x[k] - x[l]);
 	 temp = net->value *(x[k]-x[l]);
 	//if(nk->value != x[k] || nl->value != x[l])
 	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
 	     //x[k]<<" "<<x[l]<<endl;
 	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
 	
-	Ieq  = (i_t + temp);
+	double Ieq  = (i_t + temp);
 	//clog<< "Ieq is: "<<Ieq<<endl;
 	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
 	if(!nk->is_ground()&& nk->isS()!=Y){
