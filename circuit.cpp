@@ -308,7 +308,11 @@ void Circuit::solve_LU_core(Tran &tran){
    // bnewp[i] = bp[i]
    start_ptr_assign();
    //stamp_current_tr(bnewp, tran, time);
+   
+   set_eq_induc(tran);
+   set_eq_capac(tran);
    modify_rhs_tr(bnewp, xp, tran);
+   
    solve_eq(xp);
    save_tr_nodes(tran, xp);
    time += tran.step_t;
@@ -645,7 +649,7 @@ void Circuit::stamp_inductance_tr(Matrix & A, Net * net, Tran &tran){
 	size_t l = nl->rid;
 	// Geq = delta_t / (2*L)
 	Geq = tran.step_t / (2*net->value);
-	net->value = Geq;
+	//net->value = Geq;
 
 	if( nk->isS()!=Y  && !nk->is_ground()) {
 		// -1 is to clear formal inserted 1 at (k,k)
@@ -679,7 +683,7 @@ void Circuit::stamp_capacitance_tr(Matrix &A, Net *net, Tran &tran){
 	size_t l = nl->rid;
 	// Geq = 2*C / delta_t
 	Geq = (2*net->value) / tran.step_t;
-	net->value = Geq;
+	//net->value = Geq;
 	//clog<<"C delta_t Geq: "<<net->value<<" "<<tran.step_t<<" "<<Geq<<endl;
 	// Ieq = i(t) + 2*C / delta_t * v(t)
 
@@ -752,12 +756,15 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
         }
 #endif
 	if(nk->is_ground())
-	 temp = net->value*(- x[l]);
+	 //temp = 2*net->value/tran.step_t*(0-x[l]);
+	 temp = net->value *(-x[l]);
         else if(nl->is_ground()){
-         temp = net->value *(x[k] - 0);
+         //temp = 2*net->value/tran.step_t *(x[k]);
+	 temp = net->value *x[k];
         }
         else
-         temp = net->value *(x[k] - x[l]);
+         //temp = 2*net->value/tran.step_t *(x[k] - x[l]);
+	 temp = net->value *(x[k]-x[l]);
 	//if(nk->value != x[k] || nl->value != x[l])
 	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
 	     //x[k]<<" "<<x[l]<<endl;
@@ -774,6 +781,18 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 		 rhs[l] += -Ieq; 
 		//clog<<*nl<<" rhs +: "<<rhs[l]<<endl;
 	}
+}
+
+void Circuit::set_eq_induc(Tran &tran){
+	NetPtrVector &ns = net_set[INDUCTANCE];
+	for(size_t i=0;i<ns.size();i++)
+		ns[i]->value = tran.step_t /(2*ns[i]->value);
+}
+
+void Circuit::set_eq_capac(Tran &tran){
+	NetPtrVector &ns = net_set[CAPACITANCE];
+	for(size_t i=0;i<ns.size();i++)
+		ns[i]->value = 2*ns[i]->value/tran.step_t;
 }
 // add Ieq into rhs
 // Ieq = i(t) + delta_t / (2*L) *v(t)
@@ -792,7 +811,8 @@ void Circuit::modify_rhs_l_tr(Net *net, double *rhs, double *x, Tran &tran){
 	double temp = 0;
 	//temp = tran.step_t / (2*net->value) * 
 		//(nl->value - nk->value);
-	temp = net->value*(x[l] - x[k]);
+	//temp = tran.step_t / (2*net->value)*(x[l] - x[k]);
+	temp = net->value *(x[l] - x[k]);	
 	//if(nk->value != x[k] || nl->value != x[l])
 	   //clog<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
 	     //x[k]<<" "<<x[l]<<endl;

@@ -116,6 +116,8 @@ private:
 	void stamp_capacitance_tr(Matrix & A, Net * net, Tran &tran);
 	void stamp_inductance_tr(Matrix & A, Net * net, Tran &tran);
 	void modify_rhs_tr(double *b, double *xp, Tran &tran);
+	void set_eq_induc(Tran &tran);
+	void set_eq_capac(Tran &tran);
 	void modify_rhs_c_tr(Net *net, double *rhs, double *xp, Tran &tran);
 	void modify_rhs_l_tr(Net *net, double *rhs, double *xp, Tran &tran);
 	void release_tr_nodes(Tran &tran);
