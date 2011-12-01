@@ -99,30 +99,27 @@ bool compare_node_ptr(const Node * a, const Node * b){
 		return (a->pt.y < b->pt.y);
 }
 
-void *Circuit::thread_task(){
-   for(size_t i=start[my_id];i<end[my_id];i++){
-      Node * p = nodelist[i];
-      node_id[p] = i;
-   }
-   return 0;
-}
-
 // sort the nodes according to their coordinate 
 void Circuit::sort_nodes(){
+   size_t i=0;
    sort(nodelist.begin(), nodelist.end(), compare_node_ptr);
    // update node id mapping, 
    // NOTE: ground node will be the last
-   assign_task(NTHREADS, nodelist.size());
-   start_thread();
-
-   // update node id mapping, 
-   // NOTE: ground node will be the last
-#if 0
-   for(i=0;i<nodelist.size();i++){
-      Node * p = nodelist[i];
-      node_id[p] = i;
+   // if nodelist_size < 1e6, use serial
+   if(nodelist.size()<THRESHOLD){
+	   for(i=0;i<nodelist.size();i++){
+		   Node * p = nodelist[i];
+		   node_id[p] = i;
+	   }
    }
-#endif 
+// else use openmp
+   else{
+#pragma omp parallel for private(i)
+	for(i=0;i<nodelist.size();i++){
+		Node*p = nodelist[i];
+		node_id[p] = i;
+	}
+   }
 }
 
 string Circuit::get_name() const{return this->name;}
@@ -241,6 +238,7 @@ void Circuit::solve_LU_core(Tran &tran){
    make_A_symmetric(bp);
    A.set_row(n);
    Algebra::solve_CK(A, L, x, b, cm);
+   //return;
    xp = static_cast<double *> (x->x);
    
    // print out dc solution
@@ -248,9 +246,16 @@ void Circuit::solve_LU_core(Tran &tran){
    //cout<<nodelist<<endl;
 
    // A is already being cleared   
-   if(nodelist.size()!=replist.size())
-      assign_task(NTHREADS, n);
-   start_ptr_memset();
+   size_t i=0;
+   if(replist.size()<THRESHOLD){
+   	for(i=0;i<replist.size();i++)
+		bp[i] = 0;
+   }
+   else{
+#pragma omp parallel for private(i)
+	for(i=0;i<replist.size();i++)
+		bp[i] = 0;
+   }
    link_tr_nodes(tran);
 
    bnew = cholmod_zeros(n,1,CHOLMOD_REAL, cm);
@@ -265,12 +270,12 @@ void Circuit::solve_LU_core(Tran &tran){
   
    //clock_t t1, t2;
    //t1 = clock();
-   //double ts, te;
-   //ts = omp_get_wtime();
+   double ts, te;
+   ts = omp_get_wtime();
    Algebra::CK_decomp(A, L, cm);
-   //te = omp_get_wtime();
+   te = omp_get_wtime();
    //t2 = clock();
-   //clog<<"omp decomp cost: "<<te-ts<<endl;
+   clog<<"omp decomp cost: "<<te-ts<<endl;
    //clog<<"tr decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
@@ -285,28 +290,52 @@ void Circuit::solve_LU_core(Tran &tran){
 
    temp = new double [n];
    // then substitute all the nodes rid
-   for(size_t i=0;i<n;i++){
-	int id = id_map[i];
-	replist[id]->rid = i;
-	temp[i] = bp[i];
+   if(n<THRESHOLD){
+	   for(size_t i=0;i<n;i++){
+		   int id = id_map[i];
+		   replist[id]->rid = i;
+		   temp[i] = bp[i];
+	   }
+	   for(size_t i=0;i<n;i++)
+		   bp[i] = temp[id_map[i]];
+	   for(size_t i=0;i<n;i++)
+		   temp[i] = xp[i];
+	   for(size_t i=0;i<n;i++)
+		   xp[i] = temp[id_map[i]];
    }
-   //start_ptr_assign_rid();
-   for(size_t i=0;i<n;i++)
-	bp[i] = temp[id_map[i]];
-   //start_ptr_assign_bp();
-   for(size_t i=0;i<n;i++)
-	temp[i] = xp[i];
-   //start_ptr_assign_xp();
-   for(size_t i=0;i<n;i++)
-	xp[i] = temp[id_map[i]];
-   //start_ptr_assign_xp_b();
-
+   else{
+	   size_t i=0;
+#pragma omp parallel for private(i)
+	   for(i=0;i<n;i++){
+		   int id = id_map[i];
+		   replist[id]->rid = i;
+		   temp[i] = bp[i];
+	   }
+#pragma omp parallel for private(i)
+	   for(i=0;i<n;i++)
+		   bp[i] = temp[id_map[i]];
+#pragma omp parallel for private(i)
+	   for(i=0;i<n;i++)
+		   temp[i] = xp[i];
+#pragma omp parallel for private(i)
+	   for(i=0;i<n;i++)
+		   xp[i] = temp[id_map[i]];
+   }
    delete [] temp;
    delete [] id_map;
    /*****************************************/ 
 //#endif
    // bnewp[i] = bp[i]
-   start_ptr_assign();
+   if(n<THRESHOLD){
+	for(size_t i=0;i<n;i++)
+		bnewp[i] = bp[i];
+   }
+   else{
+	size_t i=0;
+#pragma omp parallel for private(i)
+	for(i=0;i<n;i++)
+		bnewp[i] = bp[i];
+   }
    //stamp_current_tr(bnewp, tran, time);
    
    set_eq_induc(tran);
@@ -353,11 +382,17 @@ void Circuit::solve_LU_core(Tran &tran){
    //ts = omp_get_wtime();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
-       // bnewp[i] = bp[i];
-       for(size_t i=0;i<n;i++)
-	bnewp[i] = bp[i];
-	//start_ptr_assign();
-
+	// bnewp[i] = bp[i];
+	if(n<THRESHOLD){
+		for(size_t i=0;i<n;i++)
+			bnewp[i] = bp[i];
+	}
+	else{
+		size_t i=0;
+#pragma omp parallel for private(i)
+		for(i=0;i<n;i++)
+			bnewp[i] = bp[i];
+	}
 
       // only stamps if net current changes
       // set bp into last state
@@ -1294,195 +1329,6 @@ void Circuit::make_A_symmetric_tr(double *b, double *x, Tran &tran){
         }
 }
 
-void Circuit::start_thread(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      pthread_create(&tid[i],NULL, Circuit::call_thread_task, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void Circuit::assign_task(int N_proc, int N){
-   size_t num = N / N_proc;
-   int res = N % N_proc;
-   size_t  tot = 0;
-   size_t num_temp = 0;
-   for(int i=0;i<N_proc;i++){
-      my_id =i;
-      num_temp = num;
-      if(i < res)
-         num_temp++;
-      start[i] = tot;
-      tot += num_temp;
-      end[i]= tot;
-      //clog<<"proc, N, start, end: "<<i<<" "<<N<<" "<<start[i]<<" "<<end[i]<<endl;
-   }
-}
-
-void* Circuit::call_thread_task(void *arg){
-   return ((Circuit*)arg)->thread_task();
-}
-
-void Circuit::start_ptr_memset(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_memset, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_memset(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-     bp[i]=0;
-     //clog<<"i, my_id, bp: "<<i<<" "<<my_id<<" "<<bp[i]<<endl;
-  }
-  return 0;
-}
-void *Circuit::call_ptr_memset(void *arg){
-   return ((Circuit*)arg)->ptr_memset();
-}
-
-void Circuit::start_ptr_assign(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-     bnewp[i]=bp[i];
-     //flag_col[i] = false;
-     //clog<<"i, my_id, bp: "<<i<<" "<<my_id<<" "<<bp[i]<<endl;
-  }
-  return 0;
-}
-void *Circuit::call_ptr_assign(void *arg){
-   return ((Circuit*)arg)->ptr_assign();
-}
-
-// xp[i] = temp[id_map[i]];
-void Circuit::start_ptr_assign_xp_b(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign_xp_b, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign_xp_b(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-	xp[i] = temp[id_map[i]];     
-  }
-  return 0;
-}
-
-
-void *Circuit::call_ptr_assign_xp_b(void *arg){
-   return ((Circuit*)arg)->ptr_assign_xp_b();
-}
-
-// tempp[i] = xp[i];
-void Circuit::start_ptr_assign_xp(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign_xp, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign_xp(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-	temp[i] = xp[i];     
-  }
-  return 0;
-}
-
-
-void *Circuit::call_ptr_assign_xp(void *arg){
-   return ((Circuit*)arg)->ptr_assign_xp();
-}
-
-// bp[i] = temp[id_map[i]];
-void Circuit::start_ptr_assign_bp(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign_bp, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign_bp(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-	bp[i] = temp[id_map[i]];     
-  }
-  return 0;
-}
-
-
-void *Circuit::call_ptr_assign_bp(void *arg){
-   return ((Circuit*)arg)->ptr_assign_bp();
-}
-
-// reassign rid and copy bp into temp
-void Circuit::start_ptr_assign_rid(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign_rid, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign_rid(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-     int id = id_map[i];
-     replist[id]->rid = i;
-     temp[i] = bp[i];
-     //clog<<"i, my_id, bp: "<<i<<" "<<my_id<<" "<<bp[i]<<endl;
-  }
-  return 0;
-}
-
-
-void *Circuit::call_ptr_assign_rid(void *arg){
-   return ((Circuit*)arg)->ptr_assign_rid();
-}
-
-void Circuit::start_ptr_assign_1(){
-//#if 0
-   for(int i=0;i<NTHREADS;i++){
-      my_id =i;
-      pthread_create(&tid[i],NULL, Circuit::call_ptr_assign_1, this);
-      pthread_join(tid[i], NULL);
-   }
-//#endif
-}
-
-void *Circuit::ptr_assign_1(){
-  for(size_t i=start[my_id];i<end[my_id];i++){
-     xp[i]=bnewp[i];
-     //clog<<"i, my_id, bp: "<<i<<" "<<my_id<<" "<<bp[i]<<endl;
-  }
-  return 0;
-}
-void *Circuit::call_ptr_assign_1(void *arg){
-   return ((Circuit*)arg)->ptr_assign_1();
-}
-
 bool compare_Node_G(const Node_G *nd_1, const Node_G *nd_2){
    return (nd_1->value < nd_2->value);
  }
@@ -1759,9 +1605,16 @@ void Circuit::solve_eq(double *X){
    int p, q, r, lnz, pend;
    int j, n = L->n ;
    // assign xp[i] = bnewp[i]
-   for(int i=0;i<n;i++)
-	X[i] = bnewp[i];
-   //start_ptr_assign_1(); 
+   if(n<THRESHOLD){
+	   for(int i=0;i<n;i++)
+		   X[i] = bnewp[i];
+   }
+   else{
+	int i=0;
+#pragma omp parallel for private(i)
+	for(i=0;i<n;i++)
+		X[i] = bnewp[i];
+   }
    size_t count = 0;
    //clock_t t1, t2;
    //t1 = clock();

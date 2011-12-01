@@ -15,7 +15,7 @@ int main(int argc, char * argv[]){
 	char * logfile=NULL;
 	char * input=NULL, * output=NULL;
 	bool input_flag = false, output_flag = false;
-
+//#if 0
 	while( ( c = getopt(argc, argv, "i:f:e:o:r:b:l:LI")) != -1 ){
 		switch(c){
 		case 'l':
@@ -42,6 +42,8 @@ int main(int argc, char * argv[]){
 	}
 
 	open_logfile(logfile);
+//#endif
+	//output = "./out";
 	if( freopen(output, "w", stdout) == NULL )
 		report_exit("Ouptut file error\n");
 
@@ -57,6 +59,7 @@ clog<<"parse cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	// do the job
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
+		//if(ckt->get_name()=="VDD")
 		ckt->solve(tran);
 	        // after that, this circuit can be released
 		delete ckt;

@@ -141,49 +141,7 @@ private:
 	void set_type(CIRCUIT_TYPE type){circuit_type = type;};
         // ************* functions and members for thread **********
 
-        double *temp;
-	void assign_task(int N_proc, int N);
-
-        void start_thread();
-        static void* call_thread_task(void*arg);
-        void *thread_task();
-
-        void start_ptr_memset();
-        static void *call_ptr_memset(void *arg);
-        void *ptr_memset();
-
-        void start_ptr_assign();
-        static void *call_ptr_assign(void *arg);
-        void *ptr_assign();
-
-	void start_ptr_assign_rid();
-        static void *call_ptr_assign_rid(void *arg);
-        void *ptr_assign_rid();
-
-        void *ptr_solve_FFS(double *X);
-
-	void start_ptr_assign_bp();
-        static void *call_ptr_assign_bp(void *arg);
-        void *ptr_assign_bp();
-
-	void start_ptr_assign_xp();
-        static void *call_ptr_assign_xp(void *arg);
-        void *ptr_assign_xp();
-
-	void start_ptr_assign_xp_b();
-        static void *call_ptr_assign_xp_b(void *arg);
-        void *ptr_assign_xp_b();
-
-	void start_ptr_assign_1();
-        static void *call_ptr_assign_1(void *arg);
-        void *ptr_assign_1();
-
-
-        pthread_t tid[NTHREADS];
-        size_t start[NTHREADS];
-        size_t end[NTHREADS];
-        int my_id;
-
+        double *temp;	
         int *id_map;
         cholmod_factor *L;
 	double *Lx;

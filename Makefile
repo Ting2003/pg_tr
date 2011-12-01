@@ -12,7 +12,7 @@ OBJ=$(SRC:.cpp=.o)
 BIN=pg
 RELEASE=IPGS
 CPPFLAGS=
-CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native -lpthread #-fopenmp
+CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native -fopenmp#-fopenmp
 #CFLAGS=-Wall -Wextra -pipe -g -msse4.2 -mssse3 -mfpmath=sse -march=native -fopenmp
 #CFLAGS=-Wall -g #-Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=core2
 #LDFLAGS=-s -Wl,-O1,-hash-style=gnu

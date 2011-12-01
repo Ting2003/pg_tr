@@ -22,7 +22,9 @@ void Algebra::solve_CK(Matrix & A, cholmod_factor *L, cholmod_dense *&x, cholmod
 	cm->final_asis = false;
 	//clock_t t1, t2;
 	//t1 = clock();
+	clog<<"before CK decomp. "<<endl;
 	CK_decomp(A, L, cm);
+	clog<<"after CK_decomp. "<<endl;
 	//t2 = clock();
 	//clog<<"time for decomp. "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	//cholmod_print_factor(L, "L", cm);
