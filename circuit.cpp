@@ -881,10 +881,8 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	//clog<<"c net: "<<*net<<endl;
 	Node *nk = net->ab[0]->rep;
 	Node *nl = net->ab[1]->rep;
-        // nk point to Z node
-        //if(nk->isS() != Z)
-		//swap<Node *>(nk, nl);
-	//clog<<"nk, nl: "<<*nk<<" "<<*nl<<endl;
+        
+	// nk point to Z node
 	size_t k = nk->rid;
 	size_t l = nl->rid;
 
@@ -892,56 +890,24 @@ void Circuit::modify_rhs_c_tr(Net *net, double * rhs, double *x, Tran &tran){
 	Node *a = r->ab[0]->rep;
 	Node *b = r->ab[1]->rep;
 	// a point to Z node
-	//if(a->isS()!=Z) swap<Node *>(a, b);
-	//clog<<"a, b: "<<*a<<" "<<*b<<endl;
 
 	size_t id_a = a->rid;
 	size_t id_b = b->rid;
-	//i_t = (b->value - a->value) / r->value;
 	double i_t = (x[id_b] - x[id_a]) / r->value;
-	//if(b->value != x[id_b] || a->value != x[id_a])
-	   //cout<<"a, b, x_a, x_b: "<<a->value<<" "<<b->value<<" "<<
-	     //x[id_a]<<" "<<x[id_b]<<endl;
-	//clog<<"i_t: "<<i_t<<endl;
-	//temp = 2*net->value / tran.step_t * 
-		//(nk->value - nl->value);
-       
-        // push 2 nodes into node_set_x
-        //clog<<*nk<<" "<<k<<endl;
- #if 0
-        if(iter ==0){
-           pg.node_set_x.push_back(k);
-           if(!nl->is_ground()) {
-              //clog<<*nl<<" "<<l<<endl;
-              pg.node_set_x.push_back(l);
-           }
-           else if(!b->is_ground()){
-              //clog<<*b<<" "<<id_b<<endl;
-              pg.node_set_x.push_back(id_b);
-           }
-        }
-#endif
+	
 	if(nk->is_ground())
 	 temp = net->value *(-x[l]);
         else if(nl->is_ground())
 	 temp = net->value *x[k];
         else
 	 temp = net->value *(x[k]-x[l]);
-	//if(nk->value != x[k] || nl->value != x[l])
-	   //cout<<"k, l, x_k, x_l: "<<nk->value<<" "<<nl->value<<" "<<
-	     //x[k]<<" "<<x[l]<<endl;
-	//clog<<"nk-nl "<<(nk->value - nl->value)<<" "<<2*net->value/tran.step_t<<" "<<temp<<endl;
 	
 	double Ieq  = i_t + temp;
-	//clog<< "Ieq is: "<<Ieq<<endl;
-	//clog<<"Geq is: "<<2*net->value / tran.step_t<<endl;
 	if(!nk->is_ground()&& nk->isS()!=Y){
 		 rhs[k] += Ieq;	// for VDD circuit
-		//clog<<*nk<<" rhs +: "<<rhs[k]<<endl;
 	}
 	if(!nl->is_ground()&& nl->isS()!=Y){
 		 rhs[l] -= Ieq; 
-		//clog<<*nl<<" rhs +: "<<rhs[l]<<endl;
 	}
 }
 

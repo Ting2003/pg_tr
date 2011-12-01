@@ -56,10 +56,21 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 	Tj = static_cast<int *>(T->j);
 	Tx = static_cast<double *>(T->x);
 	// copy data into T
-	for(size_t k=0;k<nnz;k++){
-		Ti[k] = A.Ti[k];
-		Tj[k] = A.Tj[k];
-		Tx[k] = A.Tx[k];
+	if(nnz<THRESHOLD){
+		for(size_t k=0;k<nnz;k++){
+			Ti[k] = A.Ti[k];
+			Tj[k] = A.Tj[k];
+			Tx[k] = A.Tx[k];
+		}
+	}
+	else{
+		size_t k=0;
+#pragma omp parallel for private(k)
+		for(k=0;k<nnz;k++){
+			Ti[k] = A.Ti[k];
+			Tj[k] = A.Tj[k];
+			Tx[k] = A.Tx[k];
+		}	
 	}
 	T->nnz = nnz;
 	//A.Ti.clear();

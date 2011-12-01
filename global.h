@@ -9,7 +9,6 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <pthread.h>
 #include "omp.h"
 using std::pair;
 using namespace std;
