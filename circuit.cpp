@@ -1347,18 +1347,10 @@ void Circuit::parse_path_table(){
 }
 
 void Circuit::build_path_graph(){
-   clock_t t1, t2;
-   t1 = clock();
    build_FFS_path();
-   t2 = clock();
-   //clog<<"FFS path cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    build_FBS_path();
-   t2 = clock();
-   //clog<<"FBS path cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    // only keep the 2 paths, switch from List into array
    len_path_b = pg.path_FFS.get_size();
    len_path_x = pg.path_FBS.get_size();
@@ -1386,37 +1378,19 @@ void Circuit::build_path_graph(){
    pg.nodelist.clear();
    pg.node_set_b.clear();
    pg.node_set_x.clear();
-   t2 = clock();
-   //clog<<"post cost: "<<t2-t1<<endl;
 }
 
 void Circuit::build_FFS_path(){
-   clock_t t1, t2;
-   t1 = clock();
    parse_path_table(); 
-   t2 = clock();
-   //clog<<endl<<"parse path table cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    set_up_path_table();
-   t2 = clock();
-   //clog<<"set up path table cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    find_path(pg.node_set_b, pg.path_FFS);
-   t2 = clock();
-   //clog<<"find path cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    pg.path_FFS.assign_size();
-   t2 = clock();
-   //clog<<"assign size cost: "<<t2-t1<<endl;
 
-   t1 = clock();
    for(int i=0;i<replist.size();i++)
       pg.nodelist[i]->flag = 0;
-   t2 = clock();
-   //clog<<"zeros flag cost: "<<t2-t1<<endl;
 }
 
 void Circuit::build_FBS_path(){
@@ -1451,11 +1425,7 @@ void Circuit::set_up_path_table(){
 void Circuit::find_path(vector<size_t> &node_set, List_G &path){
    Node_G* ne = pg.nodelist[pg.nodelist.size()-1];
    vector <Node_G *> insert_list;
-   //clock_t s, e;
-   //s = clock();
    sort(node_set.begin(), node_set.end());
-   //for(int i=0;i<node_set.size();i++)
-      //clog<<"i, node_set: "<<i<<" "<<node_set[i]<<endl;
    if(node_set.size() == 0) return;
    
    // build up the first path start with id = min 
@@ -1467,10 +1437,7 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
       pg.nodelist[id] = pg.nodelist[id]->next;
    }while(pg.nodelist[id]->value != ne->value);
    path.add_node(ne);
-  // e = clock();
-   //clog<<"first path cost: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 
-   //s = clock();
    for(size_t i=0; i<node_set.size();i++){
       int id = node_set[i];
       if(pg.nodelist[id]->flag == 1) continue;
@@ -1488,19 +1455,13 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
          pg.nodelist[id] = pg.nodelist[id]->next;
       }while(pg.nodelist[id]->value != ne->value); 
    }
-   //e = clock();
-   //clog<<"store insert nodes cost: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 
-   //s = clock();
    //clog<<"insert_list.size: "<<insert_list.size()<<endl;
    sort(insert_list.begin(), insert_list.end(), compare_Node_G);
-   //e = clock();
-   //clog<<"sort nodes cost: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
    //for(int i=0;i<insert_list.size();i++)
       //clog<<"i, insert: "<<i<<" "<<*insert_list[i]<<endl;
 
    //clog<<"path: "<<&path<<endl;
-   //s = clock();
    // p is the old pointer to the list
    // will be updated into new one
    Node_G *q, *p;
@@ -1511,8 +1472,6 @@ void Circuit::find_path(vector<size_t> &node_set, List_G &path){
       q = path.insert_node(insert_list[k], p);
    }
 //#endif
-   //e = clock();
-   //clog<<"insert node cost: "<<1.0*(e-s)/CLOCKS_PER_SEC<<endl;
 
    //clog<<"path: "<<&path<<endl;
    //clog<<endl;
@@ -1601,8 +1560,6 @@ void Circuit::solve_eq(double *X){
 		X[i] = bnewp[i];
    }
    size_t count = 0;
-   //clock_t t1, t2;
-   //t1 = clock();
    // FFS solve
    for (j = 0 ; j < n ; ){
       /* get the start, end, and length of column j */

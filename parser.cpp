@@ -319,8 +319,9 @@ int Parser::create_circuits(){
 // the first time is to find the layer information
 // and the second time is to create nodes
 void Parser::parse(char * filename, Tran & tran){
-	//filename = "../data/ibmpg2t.spice";//netlist_2M.txt";
+	//filename = "../data/netlist_2M.txt";
 	this->filename = filename;
+	//clog<<"open "<<filename<<endl;
 
 	FILE * f;
 	f = fopen(filename, "r");
