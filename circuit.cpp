@@ -106,19 +106,9 @@ void Circuit::sort_nodes(){
    // update node id mapping, 
    // NOTE: ground node will be the last
    // if nodelist_size < 1e6, use serial
-   if(nodelist.size()<THRESHOLD){
-	   for(i=0;i<nodelist.size();i++){
-		   Node * p = nodelist[i];
-		   node_id[p] = i;
-	   }
-   }
-// else use openmp
-   else{
-#pragma omp parallel for private(i)
-	for(i=0;i<nodelist.size();i++){
-		Node*p = nodelist[i];
-		node_id[p] = i;
-	}
+   for(i=0;i<nodelist.size();i++){
+	   Node * p = nodelist[i];
+	   node_id[p] = i;
    }
 }
 
@@ -276,6 +266,7 @@ void Circuit::solve_LU_core(Tran &tran){
    te = omp_get_wtime();
    //t2 = clock();
    clog<<"omp decomp cost: "<<te-ts<<endl;
+   //return;
    //clog<<"tr decomp cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    Lp = static_cast<int *>(L->p);
    Lx = static_cast<double*> (L->x);
@@ -379,7 +370,7 @@ void Circuit::solve_LU_core(Tran &tran){
    save_tr_nodes(tran, xp);
    time += tran.step_t;
    t1 = clock();
-   //ts = omp_get_wtime();
+   ts = omp_get_wtime();
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
@@ -408,8 +399,8 @@ void Circuit::solve_LU_core(Tran &tran){
       //iter ++;
    }
    t2 = clock();
-   //te = omp_get_wtime();
-   //clog<<"omp 1000 iter cost: "<<te-ts<<endl;
+   te = omp_get_wtime();
+   clog<<"omp 1000 iter cost: "<<te-ts<<endl;
    clog<<"1000 iter cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
    
    release_tr_nodes(tran);
@@ -425,7 +416,7 @@ void Circuit::solve_LU_core(Tran &tran){
 
 // solve the node voltages using direct LU
 void Circuit::solve_LU(Tran &tran){
-	solve_init();
+        solve_init();
 	solve_LU_core(tran);
 }
 
@@ -578,14 +569,42 @@ void Circuit::modify_rhs_tr_0(double * b, double *x, Tran &tran){
 void Circuit::modify_rhs_tr(double * b, double *x, Tran &tran){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
-		if(type ==CAPACITANCE){	
-			for(size_t i=0;i<ns.size();i++)
-				modify_rhs_c_tr(ns[i], b, x, tran);
-		}
-		else if(type == INDUCTANCE){
-			for(size_t i=0;i<ns.size();i++){
-				modify_rhs_l_tr(ns[i], b, x, tran);	
+		if(type ==CAPACITANCE){
+//			if(ns.size()>=THRESHOLD)
+//			clog<<"cap.size, THRESHOLD: "<<ns.size()<<" "<<THRESHOLD<<endl;
+//			if(ns.size()<THRESHOLD){	
+				for(size_t i=0;i<ns.size();i++)
+					modify_rhs_c_tr(ns[i], b, x, tran);
+//			}
+#if 0
+			else{
+				size_t i=0;
+			#pragma omp parallel for private(i)
+				for(i=0;i<ns.size();i++)
+					modify_rhs_c_tr(ns[i], b, x,
+					tran);
 			}
+#endif
+		}
+
+		else if(type == INDUCTANCE){
+			//clog<<"induc size, THRESHOLD: "<<ns.size()<<" "<<THRESHOLD/100<<endl;
+			//if(ns.size()<THRESHOLD){
+				for(size_t i=0;i<ns.size();i++){
+					modify_rhs_l_tr(ns[i], b, x,
+					tran);
+				}
+			//}
+#if 0
+			else{
+				size_t i=0;
+			#pragma omp parallelf for private(i)
+				for(size_t i=0;i<ns.size();i++){
+					modify_rhs_l_tr(ns[i], b, x,
+					tran);
+				}
+			}
+#endif
 		}
 	}
 }
