@@ -34,7 +34,7 @@ void Tran:: print_tr_nodes(){
 		j=0;
 		cout<<endl<<"Node: "<<nodes[i].name<<endl<<endl;
 		while(time < tot_t){// && iter <1){
-			printf("%.3e  %.6e\n", time, 
+			printf(" %.3e  %.6e\n", time, 
 				nodes[i].value[j]);
 			j++;
 			time += step_t;

@@ -9,10 +9,10 @@ SRC= util.cpp point.cpp node.cpp circuit.cpp net.cpp parser.cpp vec.cpp \
 #hash_mat.cpp map_mat.cpp 
 HDR=$(SRC:.cpp=.h)
 OBJ=$(SRC:.cpp=.o) 
-BIN=pg
+BIN=pg_tr
 RELEASE=IPGS
 CPPFLAGS=
-CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -pg -march=native -fopenmp -lgfortran#-fopenmp
+CFLAGS=-Wall -Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=native -fopenmp#-fopenmp
 #CFLAGS=-Wall -Wextra -pipe -g -msse4.2 -mssse3 -mfpmath=sse -march=native -fopenmp
 #CFLAGS=-Wall -g #-Wextra -pipe -O2 -msse4.2 -mssse3 -mfpmath=sse -march=core2
 #LDFLAGS=-s -Wl,-O1,-hash-style=gnu
@@ -33,7 +33,6 @@ CHOLMOD_LIB=$(CHOLMOD_LIB_DIR)/libcholmod.a \
 	    $(CHOLMOD)/libcamd.a \
             $(CHOLMOD)/libmetis.a \
 	    $(CHOLMOD)/libgoto2.a 
-	    #$(GOTO2)/libgoto2_nehalemp-r1.13.a
 	
 main: $(OBJ)
 	@echo "Making project..."

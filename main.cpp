@@ -50,12 +50,8 @@ int main(int argc, char * argv[]){
 	Tran tran;
 	// start to parfile
 	vector<Circuit *> cktlist;
-	clock_t t1, t2;
-	t1 = clock();
 	Parser parser(&cktlist);
 	parser.parse(input, tran);
-	t2 = clock();
-clog<<"parse cost: "<<1.0*(t2-t1)/CLOCKS_PER_SEC<<endl;
 	// do the job
 	for(size_t i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
