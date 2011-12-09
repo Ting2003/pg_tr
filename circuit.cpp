@@ -228,9 +228,11 @@ void Circuit::solve_LU_core(Tran &tran){
    make_A_symmetric(bp);
    A.set_row(n);
    Algebra::solve_CK(A, L, x, b, cm);
-   //clog<<"after solve ck. "<<endl;
    //return;
    xp = static_cast<double *> (x->x);
+   //for(size_t i=0;i<n;i++)
+	//cout<<"dc solution from ckt: "<<
+	//get_name()<<" "<<xp[i]<<endl;
    
    // print out dc solution
    //cout<<"dc solution. "<<endl;
@@ -247,7 +249,8 @@ void Circuit::solve_LU_core(Tran &tran){
 	for(i=0;i<replist.size();i++)
 		bp[i] = 0;
    }
-   link_tr_nodes(tran);
+   //link_tr_nodes(tran);
+   link_ckt_nodes(tran);
 
    bnew = cholmod_zeros(n,1,CHOLMOD_REAL, cm);
    bnewp = static_cast<double *>(bnew->x);
@@ -353,7 +356,8 @@ void Circuit::solve_LU_core(Tran &tran){
    find_super();
    solve_eq_sp(xp);
  
-   save_tr_nodes(tran, xp);
+   //save_tr_nodes(tran, xp);
+   save_ckt_nodes(tran, xp);
    time += tran.step_t;
    //clog<<"before tr solve."<<endl;
    // then start other iterations
@@ -379,12 +383,15 @@ void Circuit::solve_LU_core(Tran &tran){
 	
       solve_eq_sp(xp);
 
-      save_tr_nodes(tran, xp);
+      //save_tr_nodes(tran, xp);
+      save_ckt_nodes(tran, xp);
       time += tran.step_t;
       //iter ++;
    }
-   //clog<<"after tr solve."<<endl;
-   release_tr_nodes(tran);
+   save_ckt_nodes_to_tr(tran);
+   //print_ckt_nodes(tran);
+   //release_tr_nodes(tran);
+   release_ckt_nodes(tran);
    cholmod_free_dense(&b, cm);
    cholmod_free_dense(&bnew, cm);
    cholmod_free_factor(&L, cm);
@@ -487,8 +494,19 @@ void Circuit::stamp_current_tr(double *b, double &time){
 // stamp transient current values into rhs
 void Circuit::stamp_current_tr_1(double *bp, double *b, double &time){
 	NetPtrVector & ns = net_set[CURRENT];
-	for(size_t i=0;i<ns.size();i++)
-		stamp_current_tr_net_1(bp, b, ns[i], time);
+	//if(ns.size()<THRESHOLD){
+		for(size_t i=0;i<ns.size();i++)
+			stamp_current_tr_net_1(bp, b, ns[i], time);
+	//}
+#if 0
+	// else work in parallel
+	else{
+		size_t i=0;
+#pragma omp parallel for private(i)
+		for(i=0;i<ns.size();i++)
+			stamp_current_tr_net_1(bp, b, ns[i], time);
+	}
+#endif
 }
 
 // stamp the transient matrix
@@ -551,40 +569,13 @@ void Circuit::modify_rhs_tr(double * b, double *x){
 	for(int type=0;type<NUM_NET_TYPE;type++){
 		NetPtrVector & ns = net_set[type];
 		if(type ==CAPACITANCE){
-//			if(ns.size()>=THRESHOLD)
-//			clog<<"cap.size, THRESHOLD: "<<ns.size()<<" "<<THRESHOLD<<endl;
-//			if(ns.size()<THRESHOLD){	
-				for(size_t i=0;i<ns.size();i++)
-					modify_rhs_c_tr(ns[i], b, x);
-//			}
-#if 0
-			else{
-				size_t i=0;
-			#pragma omp parallel for private(i)
-				for(i=0;i<ns.size();i++)
-					modify_rhs_c_tr(ns[i], b, x,
-					tran);
-			}
-#endif
+			for(size_t i=0;i<ns.size();i++)
+				modify_rhs_c_tr(ns[i], b, x);
 		}
-
 		else if(type == INDUCTANCE){
-			//clog<<"induc size, THRESHOLD: "<<ns.size()<<" "<<THRESHOLD/100<<endl;
-			//if(ns.size()<THRESHOLD){
-				for(size_t i=0;i<ns.size();i++){
-					modify_rhs_l_tr(ns[i], b, x);
-				}
-			//}
-#if 0
-			else{
-				size_t i=0;
-			#pragma omp parallelf for private(i)
-				for(size_t i=0;i<ns.size();i++){
-					modify_rhs_l_tr(ns[i], b, x,
-					tran);
-				}
+			for(size_t i=0;i<ns.size();i++){
+				modify_rhs_l_tr(ns[i], b, x);
 			}
-#endif
 		}
 	}
 }
@@ -1209,6 +1200,36 @@ void Circuit:: save_tr_nodes(Tran &tran, double *x){
    }
 }
 
+// assign value back to transient nodes
+void Circuit:: save_ckt_nodes(Tran &tran, double *x){
+   size_t id=0;
+   for(size_t j=0;j<ckt_nodes.size();j++){
+	 //cout<<"nodes: "<<ckt_nodes[j].node->name<<endl;
+         id = ckt_nodes[j].node->rep->rid;
+	 //cout<<"value: "<<x[id]<<endl;
+         ckt_nodes[j].value.push_back(x[id]);
+      }
+}
+
+// link transient nodes with nodelist
+void Circuit:: link_ckt_nodes(Tran &tran){
+   Node_TR_PRINT nodes_temp;
+   for(size_t i=0;i<nodelist.size();i++){
+      for(size_t j=0;j<tran.nodes.size();j++){
+         if(nodelist[i]->name == tran.nodes[j].name){
+	    // record the index in tran.nodes
+	    nodes_temp.flag = j;
+	    //cout<<"tran.nodes, index: "<<
+		//nodelist[i]->name<<" "<<nodes_temp.flag<<endl;
+	    nodes_temp.node = nodelist[i];
+	    ckt_nodes.push_back(nodes_temp);
+            // record the id for ckt_nodes
+            break;
+         }
+      }
+   }
+}
+
 // link transient nodes with nodelist
 void Circuit:: link_tr_nodes(Tran &tran){
    for(size_t i=0;i<nodelist.size();i++){
@@ -1232,8 +1253,11 @@ void Circuit:: release_tr_nodes(Tran &tran){
    }
 }
 
-
-
+void Circuit:: release_ckt_nodes(Tran &tran){
+   for(size_t j=0;j<ckt_nodes.size();j++){
+         ckt_nodes[j].node = NULL;
+   }
+}
 
 void Circuit::make_A_symmetric(double *b){
 	int type = RESISTOR;
@@ -2000,4 +2024,40 @@ void Circuit::find_super(){
     }
  }
 
+void Circuit::print_ckt_nodes(Tran &tran){
+	double time = 0;
+	size_t j=0;
+	//clog<<"ckt, nodes: "<<get_name()<<" "<<ckt_nodes.size()<<endl;
+	for(size_t i=0;i<ckt_nodes.size();i++){
+		time = 0;
+		j=0;
+		cout<<endl<<"Node: "<<ckt_nodes[i].node->name<<endl<<endl;
+		while(time < tran.tot_t){// && iter <1){
+			printf(" %.3e  %.6e\n", time, 
+				ckt_nodes[i].value[j]);
+			j++;
+			time += tran.step_t;
+		}
+		cout<<"END: "<<ckt_nodes[i].node->name<<endl;
+	}
+}
 
+void Circuit::save_ckt_nodes_to_tr(Tran &tran){
+	int index = 0;
+	double time = 0;
+	int j=0;
+	double value = 0;
+	for(size_t i=0;i<ckt_nodes.size();i++){
+		index = ckt_nodes[i].flag;
+		//cout<<"ckt_nodes, index: "<<ckt_nodes[i].node->name
+			//<<" "<<ckt_nodes[i].flag<<endl;
+		//tran.nodes[index].node = ckt_nodes[i];
+		j=0;
+		for(time = 0; time < tran.tot_t; time+=tran.step_t){
+			value = ckt_nodes[i].value[j];
+			//cout<<"time, value: "<<time<<" "<<value<<endl;
+			tran.nodes[index].value.push_back(value);
+			j++;
+		}
+	}	
+}

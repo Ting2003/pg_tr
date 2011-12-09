@@ -128,8 +128,14 @@ private:
 	void modify_rhs_c_tr(Net *net, double *rhs, double *xp);
 	void modify_rhs_l_tr(Net *net, double *rhs, double *xp);
 	void release_tr_nodes(Tran &tran);
+	void release_ckt_nodes(Tran &tran);
+	void print_ckt_nodes(Tran &tran);
+	void save_ckt_nodes_to_tr(Tran &tran);
 	void link_tr_nodes(Tran &tran);
+	void link_ckt_nodes(Tran &tran);
 	void save_tr_nodes(Tran &tran, double *x);
+	void save_ckt_nodes(Tran &tran, double *x);
+
 	void print_tr_nodes(Tran &tran);
 
 	void copy_node_voltages(double *x, size_t &size, bool from=true);
@@ -171,7 +177,8 @@ private:
          void build_FBS_path();                  
          void set_up_path_table();               
          void find_path(vector<size_t>&node_set, List_G &path);
-        
+       
+	vector<Node_TR_PRINT> ckt_nodes;
 	// ************** member variables *******************
 	NodePtrVector nodelist;		// a set of nodes
 	NodePtrVector replist;		// a set of representative nodes

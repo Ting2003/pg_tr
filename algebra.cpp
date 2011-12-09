@@ -57,6 +57,7 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 			Tx[k] = A.Tx[k];
 		}
 	}
+//#if 0
 	else{
 		size_t k=0;
 #pragma omp parallel for private(k)
@@ -66,6 +67,7 @@ void Algebra::CK_decomp(Matrix &A, cholmod_factor *&L, cholmod_common *cm){
 			Tx[k] = A.Tx[k];
 		}	
 	}
+//#endif
 	T->nnz = nnz;
 	//A.Ti.clear();
 	//A.Tj.clear();

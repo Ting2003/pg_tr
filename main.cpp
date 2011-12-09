@@ -52,10 +52,12 @@ int main(int argc, char * argv[]){
 	vector<Circuit *> cktlist;
 	Parser parser(&cktlist);
 	parser.parse(input, tran);
+
 	// do the job
-	for(size_t i=0;i<cktlist.size();i++){
+	size_t i=0;
+#pragma omp parallel for private(i)	
+	for(i=0;i<cktlist.size();i++){
 		Circuit * ckt = cktlist[i];
-		//if(ckt->get_name()=="VDD")
 		ckt->solve(tran);
 	        // after that, this circuit can be released
 		delete ckt;
