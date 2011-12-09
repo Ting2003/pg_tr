@@ -240,15 +240,17 @@ void Circuit::solve_LU_core(Tran &tran){
 
    // A is already being cleared   
    size_t i=0;
-   if(replist.size()<THRESHOLD){
+   //if(replist.size()<THRESHOLD){
    	for(i=0;i<replist.size();i++)
 		bp[i] = 0;
-   }
+   //}
+#if 0
    else{
 #pragma omp parallel for private(i)
 	for(i=0;i<replist.size();i++)
 		bp[i] = 0;
    }
+#endif
    //link_tr_nodes(tran);
    link_ckt_nodes(tran);
 
@@ -276,7 +278,7 @@ void Circuit::solve_LU_core(Tran &tran){
 
    temp = new double [n];
    // then substitute all the nodes rid
-   if(n<THRESHOLD){
+   //if(n<THRESHOLD){
 	   for(size_t i=0;i<n;i++){
 		   int id = id_map[i];
 		   replist[id]->rid = i;
@@ -288,7 +290,8 @@ void Circuit::solve_LU_core(Tran &tran){
 		   temp[i] = xp[i];
 	   for(size_t i=0;i<n;i++)
 		   xp[i] = temp[id_map[i]];
-   }
+   //}
+#if 0
    else{
 	   size_t i=0;
 #pragma omp parallel for private(i)
@@ -307,21 +310,24 @@ void Circuit::solve_LU_core(Tran &tran){
 	   for(i=0;i<n;i++)
 		   xp[i] = temp[id_map[i]];
    }
+#endif
    delete [] temp;
    delete [] id_map;
    /*****************************************/ 
 //#endif
    // bnewp[i] = bp[i]
-   if(n<THRESHOLD){
+   //if(n<THRESHOLD){
 	for(size_t i=0;i<n;i++)
 		bnewp[i] = bp[i];
-   }
+   //}
+#if 0
    else{
 	size_t i=0;
 #pragma omp parallel for private(i)
 	for(i=0;i<n;i++)
 		bnewp[i] = bp[i];
    }
+#endif
    //stamp_current_tr(bnewp, tran, time);
    
    set_eq_induc(tran);
@@ -363,17 +369,18 @@ void Circuit::solve_LU_core(Tran &tran){
    // then start other iterations
    while(time < tran.tot_t){// && iter < 0){
 	// bnewp[i] = bp[i];
-	if(n<THRESHOLD){
+	//if(n<THRESHOLD){
 		for(size_t i=0;i<n;i++)
 			bnewp[i] = bp[i];
-	}
+	//}
+#if 0
 	else{
 		size_t i=0;
 #pragma omp parallel for private(i)
 		for(i=0;i<n;i++)
 			bnewp[i] = bp[i];
 	}
-
+#endif
       // only stamps if net current changes
       // set bp into last state
       //stamp_current_tr(bnewp, tran, time);
@@ -1554,16 +1561,18 @@ void Circuit::solve_eq(double *X){
    int p, q, r, lnz, pend;
    int j, n = L->n ;
    // assign xp[i] = bnewp[i]
-   if(n<THRESHOLD){
+   //if(n<THRESHOLD){
 	   for(int i=0;i<n;i++)
 		   X[i] = bnewp[i];
-   }
+   //}
+#if 0
    else{
 	int i=0;
 #pragma omp parallel for private(i)
 	for(i=0;i<n;i++)
 		X[i] = bnewp[i];
    }
+#endif
    size_t count = 0;
    // FFS solve
    for (j = 0 ; j < n ; ){
